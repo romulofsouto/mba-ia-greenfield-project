@@ -1,7 +1,7 @@
 ---
 scope_type: phase
 related_phases: [3]
-status: pending
+status: decided
 date: 2026-11-12
 scope_description: "Backend foundation for video upload and processing: queue technology, direct-to-storage upload protocol for files up to 10GB, worker runtime and FFmpeg invocation, unique video URL strategy, streaming/download delivery, video status lifecycle, object storage layout and endpoints, upload limits/policies, and the test strategy for real storage and queue services."
 ---
@@ -46,7 +46,8 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option A (BullMQ + Redis)** — it is the only option with a first-party Nest 11 module and with retries, backoff and stalled-job recovery built in, which TD-06 relies on; it keeps the heavy queue traffic off the PostgreSQL instance and matches the queue container already drawn in the architecture. pg-boss is the strong alternative if avoiding a new service matters more than the official integration — its transactional enqueue is a real advantage, while BullMQ needs the mitigation described in TD-06.
 
-**Decision:** _[pending]_
+**Decision:** A (BullMQ + Redis)
+**Libraries:** bullmq, @nestjs/bullmq
 
 ---
 
@@ -77,7 +78,8 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option A (S3 multipart with presigned part URLs)** — it is the only option that meets both hard requirements at once (10GB beyond the 5 GB single-PUT ceiling, and no load on the API), and it gives resume for free through the part model; tus is resumable too but routes the full 10GB through Nest, which is the impact the phase must avoid.
 
-**Decision:** _[pending]_
+**Decision:** A (S3 multipart upload with presigned part URLs)
+**Libraries:** @aws-sdk/client-s3, @aws-sdk/s3-request-presigner
 
 ---
 
@@ -108,7 +110,8 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option A** — the separate container keeps heavy processing off the API, as the phase and the architecture demand, and invoking the two binaries directly is a small, fully testable surface that avoids taking on an archived library.
 
-**Decision:** _[pending]_
+**Decision:** A (dedicated worker container + `ffprobe`/`ffmpeg` via `child_process.spawn`)
+**Libraries:** —
 
 ---
 
@@ -139,7 +142,8 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option A** — it is the only option that is both short and non-enumerable, which the unlisted visibility of Fase 04 requires; the unique index turns the collision case into a handled retry instead of a correctness risk, without new dependencies.
 
-**Decision:** _[pending]_
+**Decision:** A (random 11-char ID + unique constraint + retry on collision)
+**Libraries:** —
 
 ---
 
@@ -170,7 +174,12 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option A** — progressive streaming of the original file over Range requests satisfies "sem download completo" with no transcoding, keeps video bytes off the API and matches the architecture; HLS can be added later as a separate decision without changing the download flow.
 
-**Decision:** _[pending]_
+**Decision:** A (short-lived presigned GET URLs served directly by storage)
+**Libraries:** @aws-sdk/client-s3, @aws-sdk/s3-request-presigner
+
+**Revisions:**
+
+- 2026-11-12 — Access rule for Fase 03: streaming and download URLs are issued only to the authenticated owner of the video while it is a draft; public/anonymous access arrives with publication in Fase 04. _Rationale:_ resolves AMB-1 of phase-03-videos validation — every Fase 03 video is a draft and the draft → published flow belongs to Fase 04; consistent with the private bucket (TD-07) and the separate editorial state (TD-06).
 
 ---
 
@@ -201,7 +210,8 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option B** — separating processing from publication avoids a schema rework in Fase 04, and the API-driven trigger is the natural completion point of the multipart flow chosen in TD-02; idempotent enqueue after commit plus queue retries and a terminal `failed` state cover every failure path without storage-specific events.
 
-**Decision:** _[pending]_
+**Decision:** B (two orthogonal states — processing `uploading → processing → ready | failed` + editorial state starting as `draft` — with API-triggered processing)
+**Libraries:** —
 
 ---
 
@@ -232,7 +242,8 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option A** — one private bucket with prefixes keyed by the internal video ID keeps policy and cleanup simple and keeps unlisted/draft content private, and the internal/public endpoint split is the standard way to keep server traffic on the Docker network (`minio`, never `localhost`) while issuing URLs the browser can actually use.
 
-**Decision:** _[pending]_
+**Decision:** A (single private bucket with key prefixes + internal/public endpoints)
+**Libraries:** @aws-sdk/client-s3
 
 ---
 
@@ -258,7 +269,8 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option A** — explicit limits at init, complete and processing give a clear error at the earliest point for each failure, and the scheduled cleanup keeps the DB status consistent with storage, which a storage-only expiry cannot do.
 
-**Decision:** _[pending]_
+**Decision:** A (fixed policy enforced at init, complete and processing + scheduled cleanup)
+**Libraries:** —
 
 ---
 
@@ -289,7 +301,8 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 **Recommendation:** **Option A** — real Compose services are the only way to test the multipart, presign and Range contracts this phase depends on, and they reuse the isolation pattern the project already applies to PostgreSQL and Mailpit; the testing guide's filesystem rule must be corrected as part of the phase.
 
-**Decision:** _[pending]_
+**Decision:** A (real MinIO and Redis from Compose, isolated per suite; update the testing guide)
+**Libraries:** —
 
 ---
 
@@ -297,12 +310,12 @@ Installed baseline checked in `nestjs-project/package.json`: NestJS 11, TypeORM 
 
 | ID | Scope | Decision | Recommendation | Choice |
 |----|-------|----------|---------------|--------|
-| TD-01 | Backend | Queue Technology for Background Video Processing | A (BullMQ + Redis) | _[pending]_ |
-| TD-02 | Cross-layer | Upload Protocol for Files up to 10GB | A (S3 multipart with presigned part URLs) | _[pending]_ |
-| TD-03 | Backend | Worker Runtime and FFmpeg/FFprobe Invocation | A (dedicated worker container + `child_process`) | _[pending]_ |
-| TD-04 | Backend | Unique Video URL Identifier Strategy | A (random 11-char ID + unique index + retry) | _[pending]_ |
-| TD-05 | Cross-layer | Streaming and Download Delivery | A (short-lived presigned GET URLs) | _[pending]_ |
-| TD-06 | Backend | Video Status Lifecycle, Trigger and Failure Handling | B (processing state separate from editorial draft, API-triggered) | _[pending]_ |
-| TD-07 | Backend | Object Storage Layout, Env Contract and Endpoints | A (single private bucket + internal/public endpoints) | _[pending]_ |
-| TD-08 | Backend | Upload Limits and Policies | A (fixed limits at init/complete/processing + scheduled cleanup) | _[pending]_ |
-| TD-09 | Backend | Test Strategy for Object Storage and Queue | A (real MinIO + Redis from Compose; update testing guide) | _[pending]_ |
+| TD-01 | Backend | Queue Technology for Background Video Processing | A (BullMQ + Redis) | A |
+| TD-02 | Cross-layer | Upload Protocol for Files up to 10GB | A (S3 multipart with presigned part URLs) | A |
+| TD-03 | Backend | Worker Runtime and FFmpeg/FFprobe Invocation | A (dedicated worker container + `child_process`) | A |
+| TD-04 | Backend | Unique Video URL Identifier Strategy | A (random 11-char ID + unique index + retry) | A |
+| TD-05 | Cross-layer | Streaming and Download Delivery | A (short-lived presigned GET URLs) | A |
+| TD-06 | Backend | Video Status Lifecycle, Trigger and Failure Handling | B (processing state separate from editorial draft, API-triggered) | B |
+| TD-07 | Backend | Object Storage Layout, Env Contract and Endpoints | A (single private bucket + internal/public endpoints) | A |
+| TD-08 | Backend | Upload Limits and Policies | A (fixed limits at init/complete/processing + scheduled cleanup) | A |
+| TD-09 | Backend | Test Strategy for Object Storage and Queue | A (real MinIO + Redis from Compose; update testing guide) | A |

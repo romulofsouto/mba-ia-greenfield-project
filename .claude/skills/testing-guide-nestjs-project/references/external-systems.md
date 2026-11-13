@@ -37,88 +37,72 @@ How each external system is handled in tests. These strategies were confirmed wi
 
 ---
 
-## Object Storage — Local Filesystem
+## Object Storage — Real MinIO (Docker)
 
-**Strategy:** Local filesystem storage in development and tests. S3 in production.
+**Strategy:** Real S3 API via the Compose `minio` service (bucket `S3_BUCKET`, created by the one-shot `minio-init` service). No filesystem adapter and no S3 mocks — multipart uploads, presigned URLs, `Range`/`206` and `Content-Disposition` only exist in a real S3 implementation. S3 in production uses the same `StorageService`.
 
-**Approach:**
-- The storage layer should use an abstraction (e.g., `StorageService` interface) that allows switching between local filesystem and S3
-- In tests, use the local filesystem adapter — no mocking needed
-- Use a temporary directory for test uploads: `os.tmpdir()` or a dedicated `test-uploads/` directory
-- Clean up test files in `afterAll`
+**Connection:** `StorageModule` builds two `S3Client`s from `storageConfig`: the internal one (`S3_ENDPOINT=http://minio:9000`, Compose service name) runs every operation; the public one (`S3_PUBLIC_ENDPOINT`) only signs URLs for the browser on the host.
 
-**Setup pattern:**
-```typescript
-// In test module setup
-{
-  provide: 'STORAGE_CONFIG',
-  useValue: {
-    driver: 'local',
-    basePath: path.join(os.tmpdir(), 'streamtube-test-uploads'),
-  },
-}
-```
+**Gotcha — presigned URLs inside the container:** a URL signed with `S3_PUBLIC_ENDPOINT` (`http://localhost:9000`) points at the host and is unreachable from the `nestjs-api` container. To actually *use* a presigned URL in a test (upload a part, read with `Range`), sign it for the internal endpoint (`presignUploadPart(..., 'internal')`, `presignGetObject(key, { endpoint: 'internal' })`). Assert on public URLs only as strings (host, query params).
+
+**Test isolation:** one shared bucket; each suite owns its keys and removes them in `afterAll`. `src/test/minio.ts` provides:
+- `createStorageTestingModule()` — `ConfigModule` + `StorageModule` against the Compose MinIO
+- `MinioTestBucket` — a random per-suite prefix (`test/<uuid>/`), `key(name)` to build keys under it, `track(prefix)` for prefixes created by the code under test (e.g. `videos/{id}/`), and `cleanup()` (`deletePrefix` on every tracked prefix)
+- `uploadPartInternally(storage, key, uploadId, partNumber, body)` — uploads one part through an internal-endpoint URL and returns its ETag
 
 **Integration test:**
 ```typescript
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+describe('StorageService (integration — real MinIO)', () => {
+  let module: TestingModule;
+  let storage: StorageService;
+  let bucket: MinioTestBucket;
 
-describe('StorageService (integration)', () => {
-  const testDir = path.join(os.tmpdir(), 'streamtube-test-uploads');
-
-  afterAll(() => {
-    fs.rmSync(testDir, { recursive: true, force: true });
+  beforeAll(async () => {
+    module = await createStorageTestingModule();
+    storage = module.get(StorageService);
+    bucket = new MinioTestBucket(storage);
   });
 
-  it('should upload and retrieve a file', async () => {
-    const buffer = Buffer.from('test content');
-    const key = await storageService.upload(buffer, 'test.txt');
+  afterAll(async () => {
+    await bucket.cleanup();
+    await module.close();
+  });
 
-    const retrieved = await storageService.get(key);
-    expect(retrieved.toString()).toBe('test content');
+  it('should complete a multipart upload', async () => {
+    const key = bucket.key('video/original');
+    const uploadId = await storage.createMultipartUpload(key, 'video/mp4');
+    const etag = await uploadPartInternally(storage, key, uploadId, 1, Buffer.alloc(1024));
+    await storage.completeMultipartUpload(key, uploadId, [{ partNumber: 1, etag }]);
+
+    expect((await storage.headObject(key)).contentLength).toBe(1024);
   });
 });
 ```
 
 ---
 
-## Message Queue — Real (Docker)
+## Message Queue — Real Redis + BullMQ (Docker)
 
-**Strategy:** Real message broker in Docker. The specific technology is TBD per the architecture diagram (likely BullMQ with Redis or RabbitMQ).
+**Strategy:** Real Redis via the Compose `redis` service (`REDIS_HOST=redis`), BullMQ through `@nestjs/bullmq`. No queue mocks for producer/consumer contracts.
 
-**When the queue technology is chosen, configure:**
-- A queue broker service in `compose.yaml` (e.g., Redis for BullMQ, RabbitMQ for AMQP)
-- Test isolation: use dedicated test queues or clean queues between tests
-- For publisher tests: assert the job is enqueued with correct data
-- For consumer tests: submit a job and assert the processing outcome
+**Test isolation:** a BullMQ `prefix` unique per suite, so suites never see each other's jobs; in `afterAll`, `queue.obliterate({ force: true })` and `close()` every queue the suite opened (`src/test/redis.ts`). Processors are not registered in the API, so E2E suites never consume jobs — assert on the waiting jobs instead.
 
-**Setup pattern (BullMQ example):**
+- For publisher tests: assert the job is enqueued with the expected name, `jobId` and payload
+- For consumer tests: call the processor's `process(job)` with a real job and assert the outcome in DB/storage
+
+**Setup pattern:**
 ```typescript
-// In test module
 BullModule.forRoot({
-  connection: {
-    host: process.env.REDIS_HOST ?? 'localhost',
-    port: Number(process.env.REDIS_PORT ?? 6379),
-  },
+  connection: { host: process.env.REDIS_HOST ?? 'redis', port: Number(process.env.REDIS_PORT ?? 6379) },
+  prefix: `test-${randomUUID()}`,
 }),
 BullModule.registerQueue({ name: 'video-processing' }),
 ```
 
 ```typescript
-describe('VideoService (integration - queue)', () => {
-  it('should enqueue a processing job on upload', async () => {
-    await videoService.upload(videoData);
-
-    const queue = module.get<Queue>(getQueueToken('video-processing'));
-    const jobs = await queue.getJobs(['waiting']);
-    expect(jobs).toHaveLength(1);
-    expect(jobs[0].data).toEqual(
-      expect.objectContaining({ videoId: expect.any(String) }),
-    );
-  });
-});
+const queue = module.get<Queue>(getQueueToken('video-processing'));
+const jobs = await queue.getJobs(['waiting']);
+expect(jobs[0].data).toEqual({ videoId });
 ```
 
 ---

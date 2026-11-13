@@ -13,8 +13,10 @@ docker compose ps   # all services must show status "running"
 Then verify each infrastructure service is actually ready to accept connections — not just running:
 
 - **PostgreSQL:** `docker compose exec db pg_isready -U streamtube` — expect `accepting connections`
+- **Redis:** `docker compose exec redis redis-cli ping` — expect `PONG`
+- **MinIO:** `docker compose ps minio` shows `healthy` (healthcheck `curl -f http://localhost:9000/minio/health/live` inside the container); `docker compose ps -a minio-init` shows `Exited (0)` once the bucket `S3_BUCKET` exists. Console at http://localhost:9001 (login `S3_ACCESS_KEY` / `S3_SECRET_KEY`)
 
-Only start the NestJS dev server (`npm run start:dev`) when the user **explicitly** asks to run the application — never as part of "start the environment".
+Only start the NestJS dev server (`npm run start:dev`) when the user **explicitly** asks to run the application — never as part of "start the environment". The same applies to the `video-worker` service: start infrastructure with `docker compose up -d db mailpit redis minio minio-init`, and start the worker only on request with `docker compose up -d video-worker`.
 
 ## Development Environment
 
@@ -33,7 +35,12 @@ docker compose exec nestjs-api npm run start:dev
 
 Services:
 - `nestjs-api` — NestJS API, port `3000`
+- `video-worker` — video processing worker (same image and volume as the API, `npm run start:worker:dev`, no HTTP port); consumes the `video-processing` and `video-maintenance` queues
 - `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
+- `redis` — Redis 8 for the BullMQ queues; no host port (reach it as `redis:6379` from the containers)
+- `minio` — S3-compatible object storage; API port `9000`, console port `9001`
+- `minio-init` — one-shot job that creates the `S3_BUCKET` bucket, then exits
+- `mailpit` — SMTP `1025`, web UI `8025`
 
 All verification and teardown commands run on the **host machine**:
 
@@ -44,8 +51,13 @@ curl http://localhost:3000
 # Verify PostgreSQL is ready (runs inside the db container)
 docker compose exec db pg_isready -U streamtube
 
+# Verify Redis and MinIO are ready
+docker compose exec redis redis-cli ping
+docker compose ps minio minio-init
+
 # Check container logs
 docker compose logs nestjs-api
+docker compose logs video-worker
 docker compose logs db
 
 # Tear down the entire environment
@@ -62,6 +74,9 @@ docker compose down
 npm run start:dev                        # Dev server with hot-reload
 npm run build                            # Compile to dist/
 npm run start:prod                       # Run compiled build
+npm run start:worker:dev                 # Worker with hot-reload (what the video-worker service runs; builds to dist-worker/)
+npm run start:worker                     # Run compiled worker (dist/worker/main)
+npm run openapi:export                   # Regenerate openapi.json
 
 npm test                                 # Unit tests
 npm run test:watch                       # Unit tests in watch mode
@@ -79,6 +94,7 @@ npm run format                           # Prettier formatting
 docker compose ps
 docker compose logs nestjs-api
 docker compose exec db pg_isready -U streamtube
+docker compose exec redis redis-cli ping
 curl http://localhost:3000
 ```
 
@@ -99,7 +115,7 @@ During active development, run only the tests related to the file being changed 
 
 Commands that never exit (dev server, watch modes) must be run in background in the Bash tool — otherwise the agent blocks indefinitely waiting for the process to return.
 
-This applies to: `start:dev`, `start:prod`, `test:watch`, and any other persistent process.
+This applies to: `start:dev`, `start:prod`, `start:worker`, `start:worker:dev`, `test:watch`, and any other persistent process.
 
 ## Test Type Selection
 

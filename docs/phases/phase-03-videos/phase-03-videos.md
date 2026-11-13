@@ -141,7 +141,7 @@ Deliver the backend foundation for videos — object storage for videos and thum
 ### SI-03.5 — Endpoints de upload multipart com pré-cadastro em rascunho
 
 **Route:** POST /videos, POST /videos/:publicId/upload/part-urls, GET /videos/:publicId/upload/parts, POST /videos/:publicId/upload/complete, DELETE /videos/:publicId/upload
-**Test Specs:** _pending /plan-test-specs_
+**Test Specs:** see `nestjs-project/specs/videos-upload.plan.md`
 **Authorization:** Authenticated (criação no próprio canal); Owner nas rotas com `:publicId` — per `### Authorization Matrix`
 
 **Description:** Entrega o upload de até 10GB direto para o storage e o pré-cadastro automático do vídeo como rascunho ao iniciar o upload, disparando o processamento ao concluir.
@@ -182,7 +182,7 @@ Deliver the backend foundation for videos — object storage for videos and thum
 ### SI-03.6 — Endpoints de consulta, streaming e download
 
 **Route:** GET /videos/:publicId, GET /videos/:publicId/stream, GET /videos/:publicId/download
-**Test Specs:** _pending /plan-test-specs_
+**Test Specs:** see `nestjs-project/specs/videos-delivery.plan.md`
 **Authorization:** Owner — per `### Authorization Matrix` (somente o dono enquanto rascunho)
 
 **Description:** Entrega a reprodução via streaming sem download completo e o download do vídeo pelo dono, por URLs assinadas de curta duração servidas direto pelo storage.

@@ -10,9 +10,9 @@ More info in the project overview: [docs/project-plan.md](docs/project-plan.md)
 
 This is a monorepo with two main areas:
 
-- `nestjs-project/` — Backend API (NestJS 11, TypeScript, Express). Contains modules for users, channels, videos, comments, etc.
+- `nestjs-project/` — Backend API (NestJS 11, TypeScript, Express). Contains modules for auth, users, channels, videos, media, storage, queue, worker, and mail.
 - `docs/` — Project documentation, architecture diagrams, and planning.
-- `next-frontend/` (Next.js) — not yet initialized
+- `next-frontend/` — Frontend (Next.js 16, React 19, TypeScript, App Router). Routes in `app/`, UI in `components/`, shared code in `lib/` and `hooks/`; runs via its own `compose.yaml`. Conventions in `next-frontend/CLAUDE.md`.
 
 ## Architecture (C4 Container Diagram)
 
@@ -20,10 +20,10 @@ See `docs/diagrams/software-arch.mermaid` for the full diagram. Key containers:
 
 - **Frontend** (Next.js) → calls API via REST, streams from Object Storage
 - **API** (Nest.js) → business rules, auth, reads/writes DB, uploads to storage, publishes jobs to queue, sends emails
-- **Video Worker** (FFmpeg) → consumes jobs from queue, processes videos, updates DB and storage
+- **Video Worker** (FFmpeg) → `video-worker` container in `nestjs-project/compose.yaml` (same image and volume as the API, no HTTP port; code in `nestjs-project/src/worker/`); consumes the BullMQ queues, processes videos with FFmpeg, updates DB and storage
 - **Database** (PostgreSQL) → users, channels, videos, comments, likes
-- **Object Storage** (S3/MinIO) → video files and thumbnails
-- **Message Queue** (TBD) → video processing job queue
+- **Object Storage** (MinIO, S3-compatible) → video files and thumbnails; `minio` service in `nestjs-project/compose.yaml`, accessed via `@aws-sdk/client-s3`; the one-shot `minio-init` service creates the `S3_BUCKET` bucket
+- **Message Queue** (BullMQ + Redis) → `redis` service in `nestjs-project/compose.yaml` (`--maxmemory-policy noeviction`); queues `video-processing` and `video-maintenance` — the API publishes jobs, the worker consumes them
 - **Email Service** (SMTP) → account confirmation and password recovery
 
 ## Docker Networking

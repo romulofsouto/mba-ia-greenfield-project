@@ -1,6 +1,6 @@
 # phase-03-videos — Progress
 
-**Status:** in_progress
+**Status:** completed
 **SIs:** 10/10 completed
 
 ### SI-03.1 — Infra: Redis, MinIO e contrato de ambiente
@@ -20,7 +20,7 @@
   - Migração gerada via CLI: `src/database/migrations/1794571199100-CreateVideos.ts`; validada com `migration:run` → `migration:revert` (tabela e os dois enums removidos) → `migration:run`.
   - O `@OneToMany` inverso em `Channel` obriga `Video` a estar no metadata de todo DataSource que carrega `Channel`: `Video` foi adicionado ao `ALL_ENTITIES` das 10 suítes existentes, `cleanAllTables` passou a apagar `videos` antes de `channels`, e um `VideosModule` mínimo (só `TypeOrmModule.forFeature([Video])`) foi criado e registrado no `AppModule` já neste SI — o SI-03.5 o estende.
   - `size_bytes` (bigint) usa transformer string→number; seguro porque o valor é limitado por `VIDEO_MAX_SIZE_BYTES`.
-  - Fora de escopo (tarefa separada): `src/database/migrations.integration-spec.ts` (já falhando na baseline) não importa `CreateVideos1794571199100` como pede `typeorm-migrations.md`, e seu `DROP TABLE channels CASCADE` não cobre `videos` nem os tipos enum.
+  - Resolvido (PR #2, commit `39b84a6`): `src/database/migrations.integration-spec.ts` agora registra as 3 migrations (incluindo `CreateVideos1794571199100`) e limpa a tabela `videos` e os enums `videos_processing_status_enum` / `videos_editorial_status_enum`; passa isoladamente (3/3) e na suíte completa.
   - Fora de escopo: `npm run test:e2e` (`jest --config ./test/jest-e2e.json`) não usa `--runInBand`, embora o `nestjs-project/CLAUDE.md` diga que já está configurado — as suítes e2e rodaram em workers paralelos.
 
 ### SI-03.7 — Implementar extração de metadados e thumbnail com FFmpeg
@@ -103,3 +103,12 @@
   - **Out-of-scope (pre-existing):** request DTO schemas in `openapi.json` have empty `properties` — e.g. `CreateVideoDto`, and also the existing `LoginDto`/`RegisterDto` from phase 02 — because `openapi:export` runs through ts-node without the `@nestjs/swagger` CLI plugin (`src/metadata.ts` is a stub). `/api/docs` served by the compiled app is unaffected. Separate task.
   - `nestjs-project/CLAUDE.md`: services list (`video-worker`, `redis`, `minio`, `minio-init`, `mailpit`), readiness checks (`redis-cli ping`, MinIO healthcheck / `minio-init` exit), MinIO console on 9001, worker scripts and the infra-only startup command. The root `CLAUDE.md` (Message Queue "TBD") stays for the fechamento step, as agreed.
   - No fix-loop attempts.
+
+## DoD técnica — verificação final (2026-11-14, task `phase-03-dod-closure`)
+
+Executada no container `nestjs-api`, após PR #2 (migrations spec) e PR #5 (`lint-baseline`):
+
+- `npm test -- --runInBand`: 40/40 suítes, 233/233 testes passando (inclui `src/database/migrations.integration-spec.ts`)
+- `npm run test:e2e`: 5/5 suítes, 66/66 testes passando (inclui `test/videos-upload.e2e-spec.ts` e `test/videos-delivery.e2e-spec.ts`)
+- `npx tsc --noEmit`: exit 0
+- `npx eslint "{src,apps,libs,test}/**/*.ts" --max-warnings 0`: exit 0, sem erros nem warnings

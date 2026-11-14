@@ -16,19 +16,20 @@
 | 5 | `/plan-build 3` | 🟡 em andamento (3/5) — plano commitado (`0270b34`), falta sua revisão (5.2/5.3) |
 | 6 | `/plan-test-specs 3` (condicional) | ✅ concluído — 2 specs commitadas (`e84a1d4`) |
 | 7 | `/implement 3` | 🟡 em andamento — 10/10 SIs implementados e testados; final verification **não verde** (spec de migrations + lint); nada commitado |
-| 7B | Correções para a DoD (tasks: migrations, lint, runInBand, `phase-03-dod`) + Compose real + `/implement 3` | ⬜ pendente — roteiro no Passo 7B |
+| 7B | Correções para a DoD (tasks: migrations, lint, runInBand, `phase-03-dod`) + Compose real + `/implement 3` | 🟡 em andamento — A ✅ (fase na `dev` via PR #1) · B implementada (task `fix-migrations-integration-spec`), falta commit/merge na `dev` |
 | 8 | Fechamento (DoD + docs + PRs) | ⬜ pendente |
 
 Legenda: ⬜ pendente · 🟡 em andamento · ✅ concluído · ⏭️ não se aplica
 
-**Pendências abertas (2026-11-13):**
-- **Final verification não verde:** (1) `src/database/migrations.integration-spec.ts` — falha pré-existente **agravada pela fase** (não registra `Video`/`CreateVideos`); correção pequena recomendada nesta branch, aguardando sua autorização · (2) lint 222 erros + 53 warnings (baseline 150 + 40; +72/+13 da fase, todos em arquivos de teste).
+**Pendências abertas (2026-11-14):**
+- **Final verification não verde** (rodada na `bugfix/migrations-spec` em 2026-11-14): ✅ unit/integration 233/233 (40 suítes, inclui o spec de migrations corrigido) · ✅ `tsc` · ❌ `npm run test:e2e` 16/66 falhando — as suítes rodam em paralelo no mesmo banco (o script não tem `--runInBand`; com `-- --runInBand` passa 66/66) · ❌ lint 218 erros + 53 warnings, todos em arquivos fora desta task.
+- **`npm run lint` usa `--fix` e quebra o `tsc`:** remove o `as any` de `test/support/video-e2e.ts:52` (acesso a `mailService` privado → TS2341) e reformata `src/videos/videos.service.integration-spec.ts`. Revertido com `git checkout`. Na etapa C, medir o lint sem `--fix`.
 - **Critérios de runtime do SI-03.8 não verificados:** o `video-worker` nunca foi ligado (`docker compose ps`, upload real → `ready`, parada limpa).
-- **Nada da fase está commitado** (código, testes, `openapi.json`, `progress.md`) — um commit por SI ou um commit único, a decidir.
 - Fechamento: `CLAUDE.md` da raiz (Message Queue "TBD" → BullMQ/Redis, worker, MinIO, módulo de vídeos).
+- Follow-ups novos (fora do escopo, registrados em `docs/tasks/task-fix-migrations-integration-spec/progress.md`): `createTestDataSource` usa `synchronize: true` por padrão, o que cria tabelas sem registrar migrations (o banco tinha `videos` sem a linha `CreateVideos` em `migrations`); os specs de integração usam o mesmo banco `streamtube` da aplicação de dev (avaliar banco de teste separado).
 - Revisões antigas ainda abertas: 0.5 commitar este plano (opcional) · 1.2 revisar as 9 TDs · 2.2 revisar `context.md` · 5.2/5.3 revisar Tech Specs e SIs.
 
-**Próximo passo:** Passo 7B, etapa A (commitar a fase) → B/C (bugfixes na `dev`) → D → E → (F) → G → H (`/implement 3`) → Passo 8.
+**Próximo passo:** commitar a task na `bugfix/migrations-spec` e fazer merge na `dev` (B) → B' (`--runInBand` no `test:e2e`) → C (lint, a partir da `dev`) → E reduzida (só lint dos testes da fase) → (F) → G → H (`/implement 3`) → Passo 8. Uma branch nova da `dev` por pendência.
 
 ### Histórico
 - **2026-11-11** — context7 autenticado via OAuth (plugin `claude-plugins-official/context7`, `/mcp` → Authenticate). Passo 0.3 concluído.
@@ -64,6 +65,8 @@ Legenda: ⬜ pendente · 🟡 em andamento · ✅ concluído · ⏭️ não se a
   - Follow-ups registrados no `progress.md`: `npm run test:e2e` sem `--runInBand`; schemas de request vazios no `openapi.json` (export via ts-node sem plugin do swagger, afeta também a fase 02); `processed_at` não preenchido em `file_too_large`/`enqueue_failed`; `library-refs.md` sem o downgrade do `@nestjs/bullmq`.
   - `progress.md` segue `Status: in_progress` até a verificação ficar verde. Passo 7: SIs ✅, final verification ❌.
 - **2026-11-13** — Roteiro de correção registrado como **Passo 7B**: cada pendência da DoD vira uma task do pipeline (`migrations-spec-fix`, `test:e2e --runInBand`, `lint-baseline` com `/research`, `phase-03-dod`), mais o opcional `/decide` para o `@nestjs/bullmq` 11, a verificação manual do Compose e o `/implement 3` para a final verification. Nada executado ainda.
+- **2026-11-14** — Etapa A confirmada no git: a fase foi commitada num commit único (`34ad8d0`, não um por SI) e mergeada na `dev` pelo PR #1 (`d551ff0`). A `bugfix/migrations-spec` saiu dessa `dev`, então já contém a fase 03.
+- **2026-11-14** — Etapa B (task `fix-migrations-integration-spec`, slug diferente do sugerido `migrations-spec-fix`) na `bugfix/migrations-spec`, pipeline completo: `/plan-context` (sem decisions doc próprio; correlator: fases 01, 02-auth e 03) → `/plan-validate` `dirty` (AMB-1 banco compartilhado × suítes paralelas; AMB-2 como descobrir o que derrubar) → `/plan-resolve` (AMB-1: banco compartilhado + execução serial com `--runInBand`; AMB-2: descoberta pelo catálogo `pg_tables`/`pg_type`) → `/plan-validate` `clean` → `/plan-build` (1 SI, sem Tech Specs) → `/implement`. O spec agora derruba, um por vez, todas as tabelas e tipos enum do schema `public`; registra as 3 migrations (inclui `CreateVideos`); tem um teste novo que confere o schema vazio após o reset; o `afterAll` usa `try/finally` e só mexe na conexão se ela abriu. Desvio do plano: DataSource com lista de entidades vazia (a lista parcial quebrava no `Channel#videos`). Resultado: 3/3 testes, duas execuções seguidas, Jest encerra sozinho; o banco ficou com as 3 migrations registradas. Como a `dev` já tinha a fase 03, esta task também cobriu o item (1) da etapa E. Final verification da task: unit/integration ✅ 233/233, `tsc` ✅, e2e ❌ 16/66 (falta `--runInBand`, etapa B'), lint ❌ 218 erros (etapa C). Falta commit + merge na `dev`.
 
 ---
 
@@ -79,13 +82,13 @@ Fluxo oficial do projeto:
 | Containers `db`, `mailpit`, `nestjs-api`, `redis`, `minio` (+ `minio-init`) | ✅ rodando — `nestjs-api` ocioso; a API sobe com `docker compose exec -d nestjs-api npm run start:dev` · `video-worker` definido no compose mas **nunca ligado** (`docker compose up -d video-worker`) |
 | API `http://localhost:3000` | ✅ 200 |
 | Migrations | ✅ `CreateUsersAndChannels`, `CreateAuthTokens`, `CreateVideos` (run → revert → run validado no SI-03.3) |
-| Suíte de testes (final verification 2026-11-13) | ⚠️ e2e ✅ 66/66 · tsc ✅ · build ✅ · unit/integration ❌ 230/232 (`migrations.integration-spec.ts`, agora também por causa da fase) · lint ❌ 222 erros + 53 warnings (baseline 150 + 40) |
+| Suíte de testes (2026-11-14, `bugfix/migrations-spec`) | ⚠️ unit/integration ✅ 233/233 · tsc ✅ · e2e ❌ 16/66 pelo script (✅ 66/66 com `-- --runInBand`) · lint ❌ 218 erros + 53 warnings |
 | MCP postgres | ✅ conectado |
-| Branch atual | ✅ `feature/phase-03-videos` (local); `dev` em `origin/dev` |
+| Branch atual | `bugfix/migrations-spec` (da `dev` em `d551ff0`, que já tem a fase 03); `feature/phase-03-videos` mergeada na `dev` pelo PR #1 |
 | `next-frontend/package-lock.json` | ✅ revertido (pode voltar após `npm install` no container do front — basta reverter de novo) |
 | MCP context7 | ✅ conectado via plugin (OAuth) — tools `mcp__plugin_context7_context7__*` |
 | ffmpeg no container | ✅ ffmpeg 5.1 no `Dockerfile.dev` (imagem reconstruída) |
-| Artefatos da fase 03 | 🟡 planejamento (`a7b8042`), plano (`0270b34`) e test specs (`e84a1d4`) commitados; código dos 10 SIs + `progress.md` + `openapi.json` **não commitados** |
+| Artefatos da fase 03 | ✅ tudo commitado (`1c25bc0` … `34ad8d0`) e mergeado na `dev` (`d551ff0`) · task `fix-migrations-integration-spec` (spec + `docs/tasks/task-fix-migrations-integration-spec/`) não commitada |
 
 ---
 
@@ -364,12 +367,12 @@ Consulte o context7 / library-refs.md antes de usar cada lib.
 | G | Compose real: worker, upload → `ready`, parada limpa | — | manual |
 | H | Final verification da fase | `feature/phase-03-videos` | **`/implement 3`** |
 
-- [ ] **A** Commitar a fase (um commit por SI)
-- [ ] **B** `bugfix/migrations-spec` mergeado na `dev`
+- [x] **A** Commitar a fase *(commit único `34ad8d0`, mergeado na `dev` pelo PR #1 — `d551ff0`)*
+- [ ] **B** `bugfix/migrations-spec` mergeado na `dev` *(task `fix-migrations-integration-spec` implementada e testada em 2026-11-14; falta commit + merge)*
 - [ ] **B'** `bugfix/test-e2e-runinband` mergeado na `dev`
 - [ ] **C** `bugfix/lint-baseline` mergeado na `dev`
 - [ ] **D** `dev` mergeada na `feature/phase-03-videos` (conflitos resolvidos, `tsc` ok)
-- [ ] **E** task `phase-03-dod` implementada e commitada
+- [ ] **E** task `phase-03-dod` implementada e commitada *(item (1), spec de migrations com `videos`, já resolvido na etapa B — sobra só o lint dos testes da fase)*
 - [ ] **F** (opcional) revisão da TD-01 registrada
 - [ ] **G** verificação manual do Compose
 - [ ] **H** `/implement 3` → final verification verde, `progress.md` com `Status: completed`
@@ -444,6 +447,8 @@ Comandos dentro do container. Meça o lint sem --fix (npx eslint "{src,apps,libs
 git add -A && git commit -m "zera erros de lint pré-existentes da fase 02"
 git push -u origin bugfix/lint-baseline   # PR → dev, merge
 ```
+
+> **Atualização 2026-11-14:** a `feature/phase-03-videos` já foi mergeada na `dev` (PR #1), então as próximas correções saem direto da `dev` (uma branch por pendência) e a etapa D só é necessária se você voltar a trabalhar na `feature/phase-03-videos`. Na etapa C, meça o lint sem `--fix` (`npx eslint "{src,apps,libs,test}/**/*.ts"`): o `npm run lint` com `--fix` quebra o `tsc` em `test/support/video-e2e.ts`.
 
 ### D — Trazer os bugfixes para a feature
 ```bash

@@ -198,9 +198,7 @@ describe('VideosService delivery (integration — PostgreSQL + MinIO)', () => {
     queue = module.get<Queue>(getQueueToken(QUEUES.VIDEO_PROCESSING));
     dataSource = module.get(DataSource);
     videoRepository = dataSource.getRepository(Video);
-    fixture = await readFile(
-      join(__dirname, '../../test/fixtures/sample.mp4'),
-    );
+    fixture = await readFile(join(__dirname, '../../test/fixtures/sample.mp4'));
   });
 
   afterAll(async () => {

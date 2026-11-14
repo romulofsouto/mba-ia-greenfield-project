@@ -127,9 +127,11 @@ describe('VideosService', () => {
     beforeEach(() => {
       channels.findByUserId.mockResolvedValue({ id: 'channel-id' });
       storage.createMultipartUpload.mockResolvedValue('upload-id');
-      repo.save.mockImplementation(async (v: Partial<Video>) => v);
-      repo.findOneByOrFail.mockImplementation(async () =>
-        buildVideo({ public_id: repo.save.mock.calls.at(-1)[0].public_id }),
+      repo.save.mockImplementation((v: Partial<Video>) => Promise.resolve(v));
+      repo.findOneByOrFail.mockImplementation(() =>
+        Promise.resolve(
+          buildVideo({ public_id: repo.save.mock.calls.at(-1)[0].public_id }),
+        ),
       );
     });
 
@@ -178,7 +180,7 @@ describe('VideosService', () => {
     it('should retry with a new public id on a public_id collision', async () => {
       repo.save
         .mockRejectedValueOnce(uniqueViolation('public_id'))
-        .mockImplementation(async (v: Partial<Video>) => v);
+        .mockImplementation((v: Partial<Video>) => Promise.resolve(v));
 
       await service.initiateUpload('user', dto);
 
@@ -301,12 +303,13 @@ describe('VideosService', () => {
 
     it('should commit processing with the real size before enqueueing', async () => {
       const order: string[] = [];
-      repo.update.mockImplementation(async () => {
+      repo.update.mockImplementation(() => {
         order.push('update');
-        return { affected: 1 };
+        return Promise.resolve({ affected: 1 });
       });
-      producer.enqueue.mockImplementation(async () => {
+      producer.enqueue.mockImplementation(() => {
         order.push('enqueue');
+        return Promise.resolve();
       });
 
       await service.completeUpload('abcdefghijk', 'user', parts);

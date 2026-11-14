@@ -84,7 +84,7 @@ npm run test:cov                         # Coverage report
 npm run test:e2e                         # End-to-end tests (always with --runInBand)
 
 npx tsc --noEmit                         # Type-check (required before declaring a task done)
-npm run lint                             # ESLint with auto-fix
+npm run lint                             # ESLint with auto-fix; fails on any error or warning (--max-warnings 0)
 npm run format                           # Prettier formatting
 ```
 
@@ -170,7 +170,8 @@ NestJS with standard module structure. Source lives in `src/`, compiled output i
 - **TypeScript:** `nodenext` module resolution, `ES2023` target, `strictNullChecks` on, `noImplicitAny` off
 - **Decorators:** `emitDecoratorMetadata` + `experimentalDecorators` enabled — required for NestJS DI
 - **Prettier:** single quotes, trailing commas everywhere
-- **ESLint:** `no-explicit-any` allowed; `no-floating-promises` and `no-unsafe-argument` are warnings
+- **ESLint:** `no-explicit-any` allowed; `no-floating-promises` and `no-unsafe-argument` are warnings, but `npm run lint` runs with `--max-warnings 0`, so any warning fails the Definition of Done
+- **ESLint in test files** (`*.spec.ts`, `*.integration-spec.ts`, `*.e2e-spec.ts`): the `no-unsafe-*` rules are off (supertest types `res.body` as `any`; specs build partial mocks) and `@typescript-eslint/unbound-method` is replaced by `jest/unbound-method`, which allows `expect(obj.method)`. Shared helpers (`test/support/`, `src/test/`) are not covered by this override and keep the full rule set
 
 ## REST Conventions
 

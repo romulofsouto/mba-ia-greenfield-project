@@ -15,21 +15,23 @@
 | 4 | `/plan-resolve 3` (⇄ 3 até clean) | ✅ concluído — `clean` e commitado (`a7b8042`) |
 | 5 | `/plan-build 3` | 🟡 em andamento (3/5) — plano commitado (`0270b34`), falta sua revisão (5.2/5.3) |
 | 6 | `/plan-test-specs 3` (condicional) | ✅ concluído — 2 specs commitadas (`e84a1d4`) |
-| 7 | `/implement 3` | 🟡 em andamento — 10/10 SIs implementados e testados; final verification de 2026-11-13 **não verde** (spec de migrations + lint, ambos corrigidos na 7B); falta rodar a etapa H |
-| 7B | Correções para a DoD (tasks: migrations, lint, runInBand, `phase-03-dod`) + Compose real + `/implement 3` | 🟡 em andamento — A ✅ (PR #1) · B ✅ (PR #2) · B' ✅ (PR #3) · C implementada (task `lint-baseline`, lint 0/0), falta commit/PR → `dev` · E coberta por B + C · falta G e H |
-| 8 | Fechamento (DoD + docs + PRs) | ⬜ pendente |
+| 7 | `/implement 3` | ✅ concluído — 10/10 SIs; DoD verificada de novo em 2026-11-14 (task `phase-03-dod-closure`, PR #6) e `progress.md` da fase com `Status: completed` |
+| 7B | Correções para a DoD (tasks: migrations, lint, runInBand, `phase-03-dod-closure`, `video-worker-graceful-stop`) + Compose real | ✅ concluído — A ✅ (PR #1) · B ✅ (PR #2) · B' ✅ (PR #3) · C ✅ (PRs #4/#5) · D ⏭️ · E/H ✅ (PR #6) · G ✅ (PRs #7/#8) · F opcional (não feito) |
+| 8 | Fechamento (DoD + docs + PRs) | 🟡 em andamento (2/5) — 8.1 ✅ (PR #9) · 8.2 ✅ task `phase-03-docs-closure` na `docs/phase-03-closure2` (commit `d3c0e2b`, PR #10 → `dev` aberto) |
 
 Legenda: ⬜ pendente · 🟡 em andamento · ✅ concluído · ⏭️ não se aplica
 
 **Pendências abertas (2026-11-14):**
-- **Etapa C sem commit:** task `lint-baseline` implementada e verificada na `bugfix/lint-baseline` (DoD verde: unit/integration 233/233 · e2e 66/66 · `tsc` ✅ · lint 0 erros / 0 warnings). Falta commit + PR → `dev`. 13 arquivos modificados em `nestjs-project/` + `docs/decisions/technical-decisions-lint-baseline.md` + `docs/tasks/task-lint-baseline/`.
-- Follow-ups novos da etapa C (fora do escopo, registrados em `docs/tasks/task-lint-baseline/progress.md` e no doc de decisões): separar `lint` (checagem) de `lint:fix` — o script ainda junta `--fix` com o gate; trocar `(authService as any).mailService` por `app.get(MailService)` em `auth.service.integration-spec.ts` e `test/auth.e2e-spec.ts`; tipar respostas nos e2e quando existirem DTOs de auth; migrar `tseslint.config` (deprecated) para `defineConfig`; vulnerabilidades pré-existentes do `npm audit`; bug na skill `plan-build` (a Phase B não remove `<!-- phase-a-complete -->` em planos sem Tech Specs — 5 planos antigos ainda têm a sentinela).
-- **Critérios de runtime do SI-03.8 não verificados:** o `video-worker` nunca foi ligado (`docker compose ps`, upload real → `ready`, parada limpa).
-- Fechamento: `CLAUDE.md` da raiz (Message Queue "TBD" → BullMQ/Redis, worker, MinIO, módulo de vídeos).
+- Follow-ups da task `phase-03-dod-closure`: ~~a nota "Fora de escopo" do SI-03.3 ainda diz que o `test:e2e` não usa `--runInBand`~~ → corrigida no 8.2 (PR #10); a verificação final da task não rodou `npm run build` (coberto pelo 8.1).
+- Follow-ups da etapa C (fora do escopo, registrados em `docs/tasks/task-lint-baseline/progress.md` e no doc de decisões): separar `lint` (checagem) de `lint:fix` — o script ainda junta `--fix` com o gate; trocar `(authService as any).mailService` por `app.get(MailService)` em `auth.service.integration-spec.ts` e `test/auth.e2e-spec.ts`; tipar respostas nos e2e quando existirem DTOs de auth; migrar `tseslint.config` (deprecated) para `defineConfig`; vulnerabilidades pré-existentes do `npm audit`; bug na skill `plan-build` (a Phase B não remove `<!-- phase-a-complete -->` em planos sem Tech Specs — 5 planos antigos ainda têm a sentinela).
+- ~~Parada limpa do `video-worker` falha (etapa G)~~ → corrigida em 2026-11-14 na `bugfix/video-worker-graceful-stop` e mergeada na `dev` (PR #8 — `f9bf1e2`).
+- Follow-up novo (registrado em `docs/decisions/technical-decisions-video-worker-graceful-stop.md` → Follow-ups): o `nestjs-api` tem o mesmo tipo de problema por outro mecanismo — o PID 1 é `tail -f /dev/null` (CMD do `Dockerfile.dev`) e a API sobe via `docker compose exec`, então `docker compose stop nestjs-api` sempre espera 10 s e mata a API com SIGKILL. Corrigir exige mudar como o serviço é iniciado (um `command:` como o do worker) e o fluxo documentado `docker compose exec nestjs-api npm run start:dev` → task própria.
+- ~~Fechamento (8.2): `CLAUDE.md` da raiz + nota do SI-03.3~~ → feito na task `phase-03-docs-closure` (PR #10, aguardando merge na `dev`).
+- Follow-ups novos do 8.2 (fora do escopo, registrados em `docs/tasks/task-phase-03-docs-closure/progress.md`): `docs/diagrams/software-arch.mermaid:13` ainda declara a Message Queue como `"TBD"`; a frase "This is a monorepo with two main areas" do `CLAUDE.md` lista três itens.
 - Follow-ups novos (fora do escopo, registrados em `docs/tasks/task-fix-migrations-integration-spec/progress.md`): `createTestDataSource` usa `synchronize: true` por padrão, o que cria tabelas sem registrar migrations (o banco tinha `videos` sem a linha `CreateVideos` em `migrations`); os specs de integração usam o mesmo banco `streamtube` da aplicação de dev (avaliar banco de teste separado).
-- Revisões antigas ainda abertas: 0.5 commitar este plano (opcional) · 1.2 revisar as 9 TDs · 2.2 revisar `context.md` · 5.2/5.3 revisar Tech Specs e SIs.
+- Revisões antigas ainda abertas: 1.2 revisar as 9 TDs · 2.2 revisar `context.md` · 5.2/5.3 revisar Tech Specs e SIs.
 
-**Próximo passo:** commitar a task na `bugfix/lint-baseline` e abrir PR → `dev` (C) → (F) → G (Compose real) → H (`/implement 3`) → Passo 8. A etapa E não precisa mais de task própria: o item (1) saiu na B e o lint dos testes da fase zerou na C. Uma branch nova da `dev` por pendência.
+**Próximo passo:** merge do PR #10 (`docs/phase-03-closure2` → `dev`) → 8.3 (checklist dos critérios de aceite) → 8.4 (PR `dev` → `main`). F segue opcional. Follow-ups: uma branch nova da `dev` por pendência.
 
 ### Histórico
 - **2026-11-11** — context7 autenticado via OAuth (plugin `claude-plugins-official/context7`, `/mcp` → Authenticate). Passo 0.3 concluído.
@@ -71,6 +73,14 @@ Legenda: ⬜ pendente · 🟡 em andamento · ✅ concluído · ⏭️ não se a
 - **2026-11-14** — Etapa B' (task `test-e2e-runinband`) na `bugfix/test-e2e-runinband`: `/plan-context` (sem decisions doc próprio; correlator: `phase-03-videos` confirmado, herdados da fase 02) → `/plan-validate` `clean` direto (0 issues) → `/plan-build` (1 SI, sem Tech Specs, Phase A e B em duas execuções) → `/implement`. Mudança única: `scripts.test:e2e` = `jest --config ./test/jest-e2e.json --runInBand` (o `nestjs-project/CLAUDE.md` já dizia isso; não foi editado). Final verification: unit/integration ✅ 233/233 · e2e ✅ 66/66 em série pelo script, sem aviso de processo aberto · `tsc` ✅ · build ✅ · lint ❌ 218 erros + 53 warnings pré-existentes. O `--fix` do lint voltou a alterar `test/support/video-e2e.ts` (quebra o `tsc`) e `src/videos/videos.service.integration-spec.ts` — revertidos. `progress.md` da task segue `in_progress` só por causa do lint (etapa C). Falta commit + PR → `dev`.
 - **2026-11-14** — Etapa B' mergeada na `dev` pelo PR #3 (`5cd67ce`; commit `39075e0`). `bugfix/lint-baseline` criada a partir dessa `dev`.
 - **2026-11-14** — Etapa C (task `lint-baseline`) na `bugfix/lint-baseline`, pipeline completo: `/research lint-baseline` (baseline medido sem `--fix`: **222 erros + 53 warnings**, não 150 + 40; 263 dos 275 em specs, 6 em `channels.service.ts`, 6 em helpers de teste) → `/plan-context` (correlator: fases 01, 02-auth e 03) → `/plan-validate` `dirty` (OQ-1..3) → `/plan-resolve` com as recomendadas — TD-01 C (híbrido: corrigir produção, helpers e defeitos reais + override de `no-unsafe-*` só nos specs), TD-02 A (`eslint-plugin-jest`: `jest/unbound-method` no lugar da regra do core nos specs), TD-03 B (`--max-warnings 0`) → `/plan-validate` `clean` → `/plan-build` (6 SIs, sem Tech Specs; Phase A e B em duas execuções) → `/implement`. Mudanças: `eslint-plugin-jest@^29.17.0`; bloco de override no `eslint.config.mjs` para `*.spec.ts`/`*.integration-spec.ts`/`*.e2e-spec.ts`; `channels.service.ts` sem `as any` (estreita `QueryFailedError.driverError`); `test/support/video-e2e.ts` usa `app.get(MailService)` e valida o `access_token` (fim do problema do `--fix` quebrando o `tsc`); `create-test-data-source.ts` sem `Function`; `async` sem `await`, imports não usados e prettier corrigidos em 5 specs; script `lint` com `--max-warnings 0`; `nestjs-project/CLAUDE.md` documenta o gate e o override. Lint: 222/53 → 24/0 após o override → **0/0**. Final verification: unit/integration ✅ 233/233 (40 suítes) · e2e ✅ 66/66 (5 suítes) · `tsc` ✅ · `npm run lint` ✅ exit 0, sem alterações do `--fix`. `progress.md` da task `completed` (6/6). Cobre também o lint dos testes da fase 03 (etapa E). Falta commit + PR → `dev`.
+- **2026-11-14** — Etapa C mergeada na `dev`: commit `dff1711` (inclui este plano, então o 0.5 foi feito na prática), PRs #4 e #5 (merge `54df506`). Etapa D dispensada (a feature já estava na `dev` desde o PR #1).
+- **2026-11-14** — Etapas E + H como task `phase-03-dod-closure` (no lugar do slug `phase-03-dod`) na `bugfix/phase-03-dod-closure`: `/plan-context` → `/plan-validate` (AMB-1 escopo de `src/worker/*`; AMB-2 erros × warnings — ambas resolvidas por esclarecimento → `clean`) → `/plan-build` (1 SI, só verificação + documentação) → `/implement`. Sem mudança de código. DoD no container: `npm test -- --runInBand` 40/40 suítes, 233/233 · `npm run test:e2e` 5/5, 66/66 · `tsc --noEmit` exit 0 · `eslint --max-warnings 0` exit 0. `docs/phases/phase-03-videos/progress.md` → `Status: completed`, nota do SI-03.3 trocada pela referência ao PR #2 e seção "DoD técnica" adicionada. Commit `b5312b8`, mergeado na `dev` pelo PR #6 (`28e5e01`). Passo 7 concluído; 7B fica só com G (e F opcional). `video-worker` continua sem subir (`docker compose ps`: db, mailpit, minio, nestjs-api, redis).
+- **2026-11-14** — Etapa G na `docs/phase-03-compose-verification` (da `dev` em `28e5e01`), sem alterar código. `docker compose up -d video-worker`: compila em `dist-worker/`, `WorkerModule` sobe sem erro. Redis `PONG`, Postgres `accepting connections`, MinIO `healthy`, `minio-init` `Exited (0)`. API em `start:dev` → 200. Fluxo real pelo host com `test/fixtures/sample.mp4` (14 680 B): register → confirm-email (token pelo Mailpit) → login → `POST /videos` → `part-urls` → `PUT` direto no MinIO (ETag) → `complete` (`processing`) → `ready` em ~1 s com `duration_seconds: 2`, 160×120, h264/aac e `thumbnail_url`. Thumbnail 200 `image/jpeg`, stream com `Range: bytes=0-1023` → **206**, download → 200 com `Content-Disposition: attachment; filename="sample.mp4"`. Vídeo de teste `IXOAW90Pu7K`, de um usuário `g-check-*@example.com`, ficou no banco de dev. **Parada limpa ❌:** `docker compose stop video-worker` termina em ~1 s com `Exited (1)` e o SIGTERM não chega ao Node (detalhes em Pendências). G fica aberta até o bugfix.
+- **2026-11-14** — Bugfix da parada limpa (task `video-worker-graceful-stop`) na `bugfix/video-worker-graceful-stop`, pipeline completo: `/plan-context` (correlator: fases 03 e 01) → `/plan-validate` `dirty` (MD-1 estratégia de start; AMB-1 `stop_grace_period`) → `/research video-worker-graceful-stop` (TD-01 estratégia de start, TD-02 grace period; achado: o `nest start --watch` não trata SIGTERM e não espera o filho, então tirar só o `npm` não resolve; `node --watch` repassa o sinal e espera, testado) → `/plan-context` → `/plan-validate` (OQ-1/OQ-2) → `/plan-resolve` com as recomendadas — TD-01 B (`tsc --watch` em background + `node --watch` como PID 1), TD-02 B (`stop_grace_period: 200s`, acima dos timeouts de probe 60 s + thumbnail 120 s) → `/plan-validate` `clean` → `/plan-build` (4 SIs, sem Tech Specs) → `/implement`. Mudanças: `scripts/start-worker-dev.sh` novo; `start:worker:dev` chama o script; `compose.yaml` do `video-worker` com `command: ["sh", "scripts/start-worker-dev.sh"]` + `stop_grace_period: 200s` (`nestjs-api` inalterado); `nestjs-project/CLAUDE.md` atualizado. Verificação no serviço real: parada ociosa 0,53 s → `Exited (0)`, sem `npm error`; parada com job ativo (MinIO pausado para segurar o `ffprobe`) esperou ~8 s até o job terminar → vídeo `ready`, job `completed`, sem stall, `Exited (0)` (linha e thumbnail de teste removidas); editar `src/` → recompila e reinicia. DoD no container: unit/integration 40/40, 233/233 · e2e 5/5, 66/66 · `tsc` ✅ · lint ✅. Processador e filas intocados. Etapa G concluída. Falta commit + PR → `dev`.
+- **2026-11-14** — `bugfix/video-worker-graceful-stop` commitada (`6edbadb`) e mergeada na `dev` pelo PR #8 (`f9bf1e2`); a verificação do Compose (etapa G) já tinha entrado pelo PR #7 (`0e300c3`). Passo 7B concluído (F opcional, não feito). `main` ainda no PR #4 (`0d34e3c`) — atrás da `dev`. Branch `docs/phase-03-closure` criada da `dev` (`f9bf1e2`) para o Passo 8; 8.4 reescrito (a fase já está na `dev`: o PR final é `docs/phase-03-closure` → `dev` e, depois, `dev` → `main`).
+- **2026-11-14** — Passo 8.1 na `docs/phase-03-closure` (código = `dev` em `f9bf1e2`): `docker compose up -d` → 7 serviços, `video-worker` sobe e compila sem erro (`WorkerModule` inicializado, "Found 0 errors"), `minio-init` `Exited (0)`, Redis `PONG`, API 200. `migration:run` → "No migrations are pending". `npm test -- --runInBand` 40/40 suítes, 233/233 · `npm run test:e2e` 5/5, 66/66 · `tsc --noEmit` exit 0 · `npm run lint` exit 0 (o `--fix` não alterou arquivos) · `npm run build` exit 0. Passo 8.1 concluído.
+- **2026-11-14** — Roteiro do 8.2 reescrito como task do pipeline (`phase-03-closure-docs`, sem research/test-specs), cobrindo o `CLAUDE.md` da raiz e a nota do SI-03.3 no `progress.md` da fase (subitens 8.2a–8.2e).
+- **2026-11-14** — Passo 8.2 como task `phase-03-docs-closure` (slug diferente do sugerido `phase-03-closure-docs`) na `docs/phase-03-closure2` (da `dev` em `55007ca`, já que a `docs/phase-03-closure` foi mergeada no PR #9): `/plan-context` (sem decisions doc próprio; os subagentes correlator e phases-reader foram interrompidos, então `context.md` ficou sem herdados — marcados como "Not collected") → `/plan-validate` `clean` direto (fast path, 0 issues) → `/plan-build` (3 SIs, sem Tech Specs, Phase A e B na mesma execução) → `/implement`. Mudanças: nota do SI-03.3 → `Resolvido (PR #3, commit 39075e0)`; `CLAUDE.md` da raiz — Repository Structure com os módulos reais da API e o `next-frontend/` existente (Next.js 16), Architecture com BullMQ + Redis (filas `video-processing`/`video-maintenance`), container `video-worker` e MinIO (`minio` + `minio-init`), conferidos contra o `compose.yaml`. Só `.md`. DoD no container: unit/integration 40/40, 233/233 · e2e 5/5, 66/66 · `tsc` ✅ · lint ✅. Commit `d3c0e2b`, PR #10 → `dev` aberto.
 
 ---
 
@@ -83,16 +93,16 @@ Fluxo oficial do projeto:
 
 | Item | Situação |
 |------|----------|
-| Containers `db`, `mailpit`, `nestjs-api`, `redis`, `minio` (+ `minio-init`) | ✅ rodando — `nestjs-api` ocioso; a API sobe com `docker compose exec -d nestjs-api npm run start:dev` · `video-worker` definido no compose mas **nunca ligado** (`docker compose up -d video-worker`) |
+| Containers `db`, `mailpit`, `nestjs-api`, `redis`, `minio`, `video-worker` (+ `minio-init` `Exited (0)`) | ✅ rodando — API em `start:dev` · `video-worker` subido no 8.1 |
 | API `http://localhost:3000` | ✅ 200 |
 | Migrations | ✅ `CreateUsersAndChannels`, `CreateAuthTokens`, `CreateVideos` (run → revert → run validado no SI-03.3) |
-| Suíte de testes (2026-11-14, `bugfix/lint-baseline`) | ✅ unit/integration 233/233 · e2e 66/66 pelo script · tsc ✅ · lint 0 erros / 0 warnings (`--max-warnings 0`) · build não rodado nesta etapa (✅ na B') |
+| Suíte de testes (2026-11-14, Passo 8.1, `dev` em `f9bf1e2`) | ✅ unit/integration 233/233 (40 suítes) · e2e 66/66 (5 suítes) · tsc ✅ · lint 0 erros / 0 warnings (`--max-warnings 0`) · build ✅ |
 | MCP postgres | ✅ conectado |
-| Branch atual | `bugfix/lint-baseline` (da `dev` em `5cd67ce`, que já tem a fase 03 e as etapas B e B'); `feature/phase-03-videos` mergeada na `dev` pelo PR #1, `bugfix/migrations-spec` pelo PR #2, `bugfix/test-e2e-runinband` pelo PR #3 |
+| Branch atual | `docs/phase-03-closure2` (da `dev` em `55007ca`; PR #10 aberto). A `docs/phase-03-closure` (8.1, da `dev` em `f9bf1e2`) foi mergeada no PR #9. A `dev` contém a fase 03 (PR #1) e todos os bugfixes da 7B: `migrations-spec` (PR #2), `test-e2e-runinband` (PR #3), `lint-baseline` (PRs #4/#5), `phase-03-dod-closure` (PR #6), verificação do Compose (PR #7), `video-worker-graceful-stop` (PR #8). A `main` está no PR #4 (`0d34e3c`) |
 | `next-frontend/package-lock.json` | ✅ revertido (pode voltar após `npm install` no container do front — basta reverter de novo) |
 | MCP context7 | ✅ conectado via plugin (OAuth) — tools `mcp__plugin_context7_context7__*` |
 | ffmpeg no container | ✅ ffmpeg 5.1 no `Dockerfile.dev` (imagem reconstruída) |
-| Artefatos da fase 03 | ✅ tudo commitado (`1c25bc0` … `34ad8d0`) e mergeado na `dev` (`d551ff0`) · task `fix-migrations-integration-spec` mergeada na `dev` (PR #2) · task `test-e2e-runinband` mergeada na `dev` (PR #3) · task `lint-baseline` (13 arquivos em `nestjs-project/` + doc de decisões + `docs/tasks/task-lint-baseline/`) não commitada |
+| Artefatos da fase 03 | ✅ tudo commitado (`1c25bc0` … `34ad8d0`) e mergeado na `dev` (`d551ff0`) · task `fix-migrations-integration-spec` mergeada na `dev` (PR #2) · task `test-e2e-runinband` mergeada na `dev` (PR #3) · task `lint-baseline` mergeada (PRs #4/#5) · task `phase-03-dod-closure` mergeada (PR #6) · task `video-worker-graceful-stop` mergeada (PR #8) · este plano versionado desde `dff1711` |
 
 ---
 
@@ -115,7 +125,7 @@ Fluxo oficial do projeto:
 - [x] **0.2** Git Flow: criar `dev` (push) e `feature/phase-03-videos` *(feito em 2026-11-12)*
 - [x] **0.3** context7 conectado *(feito em 2026-11-11 via plugin + OAuth)*
 - [x] **0.4** Baseline da suíte verde (unit, e2e, tsc, lint) *(executada em 2026-11-12 — ⚠️ não verde: spec de migrations + lint pré-existentes; ver Histórico)*
-- [ ] **0.5** Commitar este plano na branch da feature (opcional)
+- [x] **0.5** Commitar este plano na branch da feature (opcional) *(entrou no commit `dff1711` da `bugfix/lint-baseline`)*
 
 ```bash
 cd /home/romulo/Documents/MBA/mba-ia-greenfield-project
@@ -314,7 +324,7 @@ git commit -m "specs de teste da fase 03"
 
 ---
 
-## [ ] PASSO 7 — Implementação SI a SI → código + `progress.md`
+## [x] PASSO 7 — Implementação SI a SI → código + `progress.md`
 
 - [x] SI-03.1 Infra: Redis, MinIO e contrato de ambiente
 - [x] SI-03.2 Implementar StorageModule sobre S3/MinIO
@@ -326,7 +336,7 @@ git commit -m "specs de teste da fase 03"
 - [x] SI-03.8 Implementar worker de processamento de vídeo
 - [x] SI-03.9 Implementar limpeza agendada de uploads abandonados
 - [x] SI-03.10 Documentar API de vídeos e ambiente
-- [ ] Final verification (suíte completa + tsc + lint + build) *(rodada em 2026-11-13: e2e/tsc/build ✅; unit ❌ spec de migrations; lint ❌ — ver Histórico)*
+- [x] Final verification (suíte completa + tsc + lint + build) *(2026-11-13 não verde; refeita em 2026-11-14 pela task `phase-03-dod-closure`: unit 233/233, e2e 66/66, tsc e lint ✅; build ✅ na B')*
 
 > Nomes atualizados para os SIs reais do plano gerado no Passo 5 (2026-11-12). Ordem sugerida: 03.1 → 03.3 → 03.7 → 03.2 → 03.4 → 03.5 → 03.6 → 03.8 → 03.9 → 03.10.
 
@@ -355,7 +365,7 @@ Consulte o context7 / library-refs.md antes de usar cada lib.
 
 ---
 
-## [ ] PASSO 7B — Correções para fechar a Definition of Done (pipeline em modo task)
+## [x] PASSO 7B — Correções para fechar a Definition of Done (pipeline em modo task)
 
 > Origem: final verification de 2026-11-13 (ver Histórico). Bloqueios de reprovação automática: suíte vermelha (`migrations.integration-spec.ts`), lint quebrado (222 erros), `video-worker` nunca subido, CLAUDE.md inconsistente (`test:e2e` sem `--runInBand`; Message Queue "TBD" na raiz).
 > Cada pendência vira uma **task** do pipeline (`docs/tasks/task-<slug>/` com context, validation, plano e progress), deixando a IA observável também nas correções. Cada comando de skill em **janela nova** (`/clear`). Se um `validation.md` vier `dirty`: `/plan-resolve <slug>` → `/plan-validate <slug>` até `clean`.
@@ -374,12 +384,12 @@ Consulte o context7 / library-refs.md antes de usar cada lib.
 - [x] **A** Commitar a fase *(commit único `34ad8d0`, mergeado na `dev` pelo PR #1 — `d551ff0`)*
 - [x] **B** `bugfix/migrations-spec` mergeado na `dev` *(PR #2 — `420b765`, em 2026-11-14)*
 - [x] **B'** `bugfix/test-e2e-runinband` mergeado na `dev` *(PR #3 — `5cd67ce`, em 2026-11-14)*
-- [ ] **C** `bugfix/lint-baseline` mergeado na `dev` *(task `lint-baseline` implementada e verificada em 2026-11-14 — lint 0/0, DoD verde; falta commit + PR)*
-- [ ] **D** `dev` mergeada na `feature/phase-03-videos` (conflitos resolvidos, `tsc` ok)
-- [ ] **E** task `phase-03-dod` implementada e commitada *(dispensável: item (1) resolvido na etapa B e item (2), lint dos testes da fase, zerado na etapa C — marcar quando a C for mergeada)*
+- [x] **C** `bugfix/lint-baseline` mergeado na `dev` *(commit `dff1711`, PRs #4/#5 — `54df506`, em 2026-11-14)*
+- [x] **D** ⏭️ não se aplica *(a feature já estava na `dev` desde o PR #1; correções saíram direto da `dev`)*
+- [x] **E** task `phase-03-dod-closure` implementada e commitada *(itens já resolvidos em B e C; a task só verificou a DoD e fechou o `progress.md` — commit `b5312b8`, PR #6 — `28e5e01`)*
 - [ ] **F** (opcional) revisão da TD-01 registrada
-- [ ] **G** verificação manual do Compose
-- [ ] **H** `/implement 3` → final verification verde, `progress.md` com `Status: completed`
+- [x] **G** verificação manual do Compose *(2026-11-14: worker sobe, upload real → `ready` com thumbnail, stream 206 e download ✅; parada limpa ✅ após a task `video-worker-graceful-stop` — PRs #7/#8, `f9bf1e2`)*
+- [x] **H** final verification verde, `progress.md` com `Status: completed` *(feito pela task `phase-03-dod-closure`, sem rodar `/implement 3`)*
 
 > **Alternativa mais curta:** fazer B e C direto na `feature/phase-03-videos` (tasks separadas, commits separados). Elimina a etapa D e os conflitos; não fere o Git Flow do enunciado, só abre mão da regra "não misturar escopos" do `CLAUDE.md`.
 
@@ -507,10 +517,10 @@ git add -A && git commit -m "fase 03 concluída: final verification verde"
 
 ## [ ] PASSO 8 — Fechamento (Definition of Done + documentação)
 
-- [ ] 8.1 Verificação manual (compose, migrations, testes, tsc, lint)
-- [ ] 8.2 Auditoria de CLAUDE.md / README
+- [x] 8.1 Verificação manual (compose, migrations, testes, tsc, lint) *(2026-11-14, + `build` — tudo verde)*
+- [x] 8.2 Auditoria de CLAUDE.md / README + nota do SI-03.3 *(2026-11-14, task `phase-03-docs-closure` — PR #10; README não auditado)*
 - [ ] 8.3 Checklist dos critérios de aceite
-- [ ] 8.4 Push + PR `feature/phase-03-videos` → `dev` (merge)
+- [ ] 8.4 Push + PR `docs/phase-03-closure` → `dev` (merge) e, depois, PR `dev` → `main` *(`docs/phase-03-closure` mergeada no PR #9; `docs/phase-03-closure2` no PR #10, aberto; falta `dev` → `main`)*
 - [ ] 8.5 (opcional) Log da sessão em `_claude-sessions/`
 
 8.1 — Verificação manual (terminal):
@@ -524,15 +534,37 @@ docker compose exec nestjs-api npx tsc --noEmit ; echo "exit=$?"
 docker compose exec nestjs-api npm run lint
 ```
 
-8.2 — Auditoria da documentação. **Prompt** (janela nova):
+8.2 — Auditoria da documentação como **task** do pipeline (`phase-03-closure-docs`), junto com a nota do SI-03.3 no `progress.md` da fase. Sem `/research` (não há decisão técnica) e sem `/plan-test-specs` (só `.md`). Branch: `docs/phase-03-closure`. Cada comando em **janela nova** (`/clear`).
+
+- [x] 8.2a `/plan-context` → `docs/tasks/task-phase-03-docs-closure/context.md` *(slug `phase-03-docs-closure`)*
+- [x] 8.2b `/plan-validate` `clean` (⇄ `/plan-resolve` se `dirty`) *(`clean` direto)*
+- [x] 8.2c `/plan-build` → `task-phase-03-docs-closure.md` *(3 SIs)*
+- [x] 8.2d `/implement` → docs corrigidos + `progress.md` da task *(3/3, `completed`)*
+- [x] 8.2e commit na `docs/phase-03-closure2` *(`d3c0e2b`, PR #10)*
+
+**8.2a** — confirmar o slug `phase-03-closure-docs`; se o correlator sugerir `phase-03-videos` ou `test-e2e-runinband`, **incluir** (são as fontes de verdade das notas):
 ```
-Revise o CLAUDE.md da raiz e o nestjs-project/CLAUDE.md (e README.md) contra o código real da Fase 03:
-módulo de vídeos, endpoints, fila/worker, storage, serviços do compose, variáveis de ambiente e verificação de readiness.
-Corrija qualquer referência a arquivo ou comportamento inexistente e acrescente o que faltar. Não altere código.
+/plan-context "Fechamento documental da fase 03, sem alterar código: (1) em docs/phases/phase-03-videos/progress.md, a nota 'Fora de escopo' do SI-03.3 ainda diz que npm run test:e2e não usa --runInBand, mas isso foi resolvido no PR #3 (task test-e2e-runinband) — trocar a nota por uma referência 'Resolvido (PR #3)', no mesmo formato da nota do PR #2 logo acima; (2) atualizar o CLAUDE.md da raiz contra o código real da fase 03: Message Queue 'TBD' → BullMQ + Redis, container video-worker (FFmpeg), MinIO como Object Storage no compose, módulo de vídeos, e next-frontend/ descrito como 'not yet initialized' embora já exista. Só arquivos .md."
 ```
+**8.2b**
+```
+/plan-validate phase-03-closure-docs
+```
+Se `dirty`: `/plan-resolve phase-03-closure-docs` → `/plan-validate phase-03-closure-docs` até `clean`.
+
+**8.2c**
+```
+/plan-build phase-03-closure-docs
+```
+**8.2d**
+```
+/implement phase-03-closure-docs
+```
+**8.2e**
 ```bash
-git add -A && git commit -m "atualiza CLAUDE.md e docs com a seção de vídeos da fase 03"
+git add -A && git commit -m "fecha documentação da fase 03: CLAUDE.md da raiz e nota do SI-03.3"
 ```
+**Critério para avançar:** `progress.md` da task com `Status: completed`; `CLAUDE.md` da raiz sem "TBD" e coerente com o compose; nota do SI-03.3 apontando o PR #3.
 
 8.3 — Checklist dos critérios de aceite. **Prompt** (janela nova):
 ```
@@ -546,9 +578,10 @@ tsc e lint ok; CLAUDE.md coerente. Liste o que está OK e o que falta.
 
 8.4 — Git Flow final:
 ```bash
-git push -u origin feature/phase-03-videos
-# Abrir PR feature/phase-03-videos → dev e fazer merge
-# Quando dev estiver estável: PR dev → main (nunca commit direto na main)
+# A feature/phase-03-videos já está na dev (PR #1); o fechamento sai da docs/phase-03-closure
+git push -u origin docs/phase-03-closure
+# Abrir PR docs/phase-03-closure → dev e fazer merge
+# Com a dev estável: PR dev → main (nunca commit direto na main)
 ```
 
 8.5 — (Opcional) Salvar o log da sessão em `_claude-sessions/14-fase03-...txt`, como nas fases anteriores, para deixar a presença da IA observável.
@@ -567,5 +600,5 @@ git push -u origin feature/phase-03-videos
 | 5 | `/plan-build 3` | `phase-03-videos.md` |
 | 6 | `/plan-test-specs 3` (condicional) | `nestjs-project/specs/*.plan.md` |
 | 7 | `/implement 3` | código + `progress.md` |
-| 7B | tasks `fix-migrations-integration-spec`, `test-e2e-runinband`, `lint-baseline` (+ `/decide` opcional) → `/implement 3` | `docs/tasks/task-*/`, DoD verde, `progress.md` `completed` |
-| 8 | verificação + docs + PRs | DoD verde, CLAUDE.md atualizado, merge em `dev` |
+| 7B | tasks `fix-migrations-integration-spec`, `test-e2e-runinband`, `lint-baseline`, `phase-03-dod-closure`, `video-worker-graceful-stop` (+ `/decide` opcional) | `docs/tasks/task-*/`, DoD verde, `progress.md` `completed` |
+| 8 | verificação + docs + PRs (`docs/phase-03-closure`) | DoD verde, CLAUDE.md atualizado, merge em `dev` → `main` |

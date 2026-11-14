@@ -13,7 +13,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "start:worker": "node dist/worker/main",
-    "start:worker:dev": "nest start --watch --path tsconfig.worker.json --entryFile worker/main",
+    "start:worker:dev": "sh scripts/start-worker-dev.sh",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix --max-warnings 0",
     "test": "jest",
     "test:watch": "jest --watch",

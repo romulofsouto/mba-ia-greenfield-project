@@ -8,7 +8,7 @@ More info in the project overview: [docs/project-plan.md](docs/project-plan.md)
 
 ## Repository Structure
 
-This is a monorepo with two main areas:
+This is a monorepo with three main areas:
 
 - `nestjs-project/` — Backend API (NestJS 11, TypeScript, Express). Contains modules for auth, users, channels, videos, media, storage, queue, worker, and mail.
 - `docs/` — Project documentation, architecture diagrams, and planning.

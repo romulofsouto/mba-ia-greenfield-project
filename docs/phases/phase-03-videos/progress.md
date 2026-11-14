@@ -21,7 +21,7 @@
   - O `@OneToMany` inverso em `Channel` obriga `Video` a estar no metadata de todo DataSource que carrega `Channel`: `Video` foi adicionado ao `ALL_ENTITIES` das 10 suítes existentes, `cleanAllTables` passou a apagar `videos` antes de `channels`, e um `VideosModule` mínimo (só `TypeOrmModule.forFeature([Video])`) foi criado e registrado no `AppModule` já neste SI — o SI-03.5 o estende.
   - `size_bytes` (bigint) usa transformer string→number; seguro porque o valor é limitado por `VIDEO_MAX_SIZE_BYTES`.
   - Resolvido (PR #2, commit `39b84a6`): `src/database/migrations.integration-spec.ts` agora registra as 3 migrations (incluindo `CreateVideos1794571199100`) e limpa a tabela `videos` e os enums `videos_processing_status_enum` / `videos_editorial_status_enum`; passa isoladamente (3/3) e na suíte completa.
-  - Fora de escopo: `npm run test:e2e` (`jest --config ./test/jest-e2e.json`) não usa `--runInBand`, embora o `nestjs-project/CLAUDE.md` diga que já está configurado — as suítes e2e rodaram em workers paralelos.
+  - Resolvido (PR #3, commit `39075e0`): `npm run test:e2e` agora roda `jest --config ./test/jest-e2e.json --runInBand` (task `test-e2e-runinband`), alinhado ao que o `nestjs-project/CLAUDE.md` documenta.
 
 ### SI-03.7 — Implementar extração de metadados e thumbnail com FFmpeg
 - **Status:** completed

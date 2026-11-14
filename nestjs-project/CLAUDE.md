@@ -165,6 +165,47 @@ NestJS with standard module structure. Source lives in `src/`, compiled output i
 - Each domain feature gets its own module (e.g., `UsersModule`, `VideosModule`) registered in `AppModule`
 - Controllers handle HTTP routing; Services hold business logic; both are scoped to their module
 
+## Videos (Phase 03)
+
+Plan and specs: `docs/phases/phase-03-videos/phase-03-videos.md`; decisions: `docs/decisions/technical-decisions-phase-03-videos.md`.
+
+Modules:
+- `src/videos/` — `VideosModule`: `Video` entity, `VideosController` (`/videos`), `VideosService`, `VideoProcessingProducer`. Also holds the processors `VideoProcessingProcessor` and `UploadCleanupProcessor` (+ `UploadCleanupService`), which are provided **only** by `WorkerModule`
+- `src/storage/` — `StorageModule`/`StorageService` over `@aws-sdk/client-s3` (MinIO locally): two clients, internal endpoint (`S3_ENDPOINT`) for operations and public endpoint (`S3_PUBLIC_ENDPOINT`) for presigned URLs given to the client. Single private bucket; keys from `storage.keys.ts`: `videos/<id>/original` and `thumbnails/<id>/default.jpg` (internal `id`, never the `public_id`)
+- `src/queue/` — `QueueModule` (BullMQ via `@nestjs/bullmq`); queue/job names and job options in `queue.constants.ts`
+- `src/media/` — `MediaProbeService` (`ffprobe`) and `ThumbnailService` (`ffmpeg`), run via `child_process.spawn` with timeouts (`run-process.ts`, `media.constants.ts`)
+- `src/worker/` — worker entrypoint (`main.ts`, Nest application context without HTTP), `WorkerModule` and `MaintenanceScheduler`
+
+Endpoints (all authenticated and owner-only — another user's video returns `404 VIDEO_NOT_FOUND`):
+
+| Method | Path | Result |
+|--------|------|--------|
+| POST | `/videos` | `201` — creates the video as draft and starts the multipart upload |
+| POST | `/videos/:publicId/upload/part-urls` | `200` — presigned `UploadPart` URLs |
+| GET | `/videos/:publicId/upload/parts` | `200` — parts already uploaded (resume) |
+| POST | `/videos/:publicId/upload/complete` | `200` — completes the upload and enqueues processing |
+| DELETE | `/videos/:publicId/upload` | `204` — aborts the upload |
+| GET | `/videos/:publicId` | `200` — video details (with presigned `thumbnail_url` when available) |
+| GET | `/videos/:publicId/stream` | `200 { url, expires_in }` — presigned GET; storage answers `Range` with `206` |
+| GET | `/videos/:publicId/download` | `200 { url, expires_in }` — presigned GET with `Content-Disposition: attachment` |
+
+Flow:
+- **Upload (up to 10GB):** the file never passes through the API. `POST /videos` validates size/MIME, creates the S3 multipart upload and inserts the row; the client uploads the parts straight to MinIO using the presigned URLs and calls `complete`. On completion the API checks the real object size (`headObject`), sets `processing_status = processing` and enqueues `process-video`
+- **Unique URL:** `public_id` — random 11-char base64url, `UNIQUE` index, retried on collision (`public-id.util.ts`)
+- **Status:** two independent axes on `videos` — `processing_status` (`uploading → processing → ready | failed`) and `editorial_status` (`draft`; publishing arrives in Phase 04). Transitions are conditional `UPDATE … WHERE processing_status = <expected>`. `failure_reason` values are in `FAILURE_REASONS` (`videos.constants.ts`)
+- **Processing (worker):** `ffprobe` extracts duration, dimensions, codecs and format; `ffmpeg` extracts a frame from the middle of the video as the thumbnail and uploads it to storage; then the video becomes `ready`. A file that is not a video fails immediately (`not_a_video`, `UnrecoverableError`); other errors are retried and become `processing_error` on the last attempt. A re-delivered job for a video that is no longer `processing` is a no-op
+
+Queues (Redis, BullMQ; producers in the API, processors only in `video-worker`):
+- `video-processing` → job `process-video` (`{ videoId }`, job id `process-<videoId>`), 3 attempts with exponential backoff, worker concurrency `1`
+- `video-maintenance` → job `cleanup-abandoned-uploads`, scheduled hourly (`0 * * * *`) by `MaintenanceScheduler` via `upsertJobScheduler`; aborts uploads stuck in `uploading` for longer than `VIDEO_UPLOAD_ABANDON_AFTER_HOURS` and marks them `failed/upload_abandoned`
+
+Environment (`.env.example`; validated in `src/config/env.validation.ts`):
+- Storage: `S3_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, `S3_FORCE_PATH_STYLE`
+- Queue: `REDIS_HOST`, `REDIS_PORT`
+- Videos: `VIDEO_MAX_SIZE_BYTES` (10GB), `VIDEO_PART_SIZE_BYTES`, `VIDEO_ALLOWED_MIME_TYPES`, `VIDEO_UPLOAD_URL_TTL_SECONDS`, `VIDEO_DELIVERY_URL_TTL_SECONDS`, `VIDEO_UPLOAD_ABANDON_AFTER_HOURS`
+
+Tests use the real MinIO and Redis from Compose (no storage/queue mocks in integration/e2e). Helpers: `src/test/minio.ts`, `src/test/redis.ts`, `src/test/video-app-config.ts`, `test/support/video-e2e.ts`; video fixtures in `test/fixtures/`.
+
 ## Code Conventions
 
 - **TypeScript:** `nodenext` module resolution, `ES2023` target, `strictNullChecks` on, `noImplicitAny` off

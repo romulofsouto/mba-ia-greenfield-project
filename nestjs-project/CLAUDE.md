@@ -35,7 +35,7 @@ docker compose exec nestjs-api npm run start:dev
 
 Services:
 - `nestjs-api` — NestJS API, port `3000`
-- `video-worker` — video processing worker (same image and volume as the API, `npm run start:worker:dev`, no HTTP port); consumes the `video-processing` and `video-maintenance` queues
+- `video-worker` — video processing worker (same image and volume as the API, no HTTP port); consumes the `video-processing` and `video-maintenance` queues. It runs `scripts/start-worker-dev.sh`: `tsc --watch` compiles into `dist-worker/` and `node --watch` (PID 1) restarts the worker on changes. `docker compose stop video-worker` sends SIGTERM to that node process, Nest closes the BullMQ workers and the container exits with `Exited (0)` — immediately when idle, or after the active job finishes, up to `stop_grace_period` (200s); past that the container is killed and the job comes back through BullMQ stalled-job recovery
 - `db` — PostgreSQL 17, port `5432`, database `streamtube`, user/password `streamtube`
 - `redis` — Redis 8 for the BullMQ queues; no host port (reach it as `redis:6379` from the containers)
 - `minio` — S3-compatible object storage; API port `9000`, console port `9001`
@@ -74,7 +74,7 @@ docker compose down
 npm run start:dev                        # Dev server with hot-reload
 npm run build                            # Compile to dist/
 npm run start:prod                       # Run compiled build
-npm run start:worker:dev                 # Worker with hot-reload (what the video-worker service runs; builds to dist-worker/)
+npm run start:worker:dev                 # Worker with hot-reload via scripts/start-worker-dev.sh (the video-worker service runs the script directly; builds to dist-worker/)
 npm run start:worker                     # Run compiled worker (dist/worker/main)
 npm run openapi:export                   # Regenerate openapi.json
 

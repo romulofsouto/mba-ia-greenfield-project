@@ -18,11 +18,17 @@ services:
         condition: service_healthy
 
   # Same image and volume as the API; consumes the video queues. No HTTP port.
+  # The launcher execs `node --watch`, so SIGTERM from `docker compose stop`
+  # reaches the worker (npm would swallow it) and Nest closes the BullMQ workers.
   video-worker:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    command: ["npm", "run", "start:worker:dev"]
+    command: ["sh", "scripts/start-worker-dev.sh"]
+    # Lets an active job finish before SIGKILL: covers the probe (60s) and
+    # thumbnail (120s) timeouts in src/media/media.constants.ts plus the upload.
+    # Revisit if those timeouts change.
+    stop_grace_period: 200s
     volumes:
       - .:/home/node/app
     depends_on:

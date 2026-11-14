@@ -4,9 +4,9 @@ import { ThrottlerStorage, ThrottlerStorageService } from '@nestjs/throttler';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../../src/app.module';
-import { AuthService } from '../../src/auth/auth.service';
 import { DomainExceptionFilter } from '../../src/common/filters/domain-exception.filter';
 import { ValidationExceptionFilter } from '../../src/common/filters/validation-exception.filter';
+import { MailService } from '../../src/mail/mail.service';
 import { overrideQueuePrefix } from '../../src/test/video-app-config';
 
 // Boots AppModule the way main.ts does (global pipe + filters), with BullMQ
@@ -49,12 +49,13 @@ export async function registerConfirmAndLogin(
   email: string,
   password = 'password123',
 ): Promise<string> {
-  const mailService = (app.get(AuthService) as any).mailService;
+  const mailService = app.get(MailService);
   let token = '';
   const spy = jest
     .spyOn(mailService, 'sendConfirmationEmail')
-    .mockImplementationOnce(async (_e: string, _n: string, t: string) => {
+    .mockImplementationOnce((_e: string, _n: string, t: string) => {
       token = t;
+      return Promise.resolve();
     });
   await request(app.getHttpServer())
     .post('/auth/register')
@@ -70,5 +71,9 @@ export async function registerConfirmAndLogin(
     .post('/auth/login')
     .send({ email, password })
     .expect(200);
-  return res.body.access_token as string;
+  const body = res.body as { access_token?: unknown };
+  if (typeof body.access_token !== 'string') {
+    throw new Error('Login response did not include an access_token');
+  }
+  return body.access_token;
 }

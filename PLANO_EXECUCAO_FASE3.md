@@ -15,21 +15,21 @@
 | 4 | `/plan-resolve 3` (⇄ 3 até clean) | ✅ concluído — `clean` e commitado (`a7b8042`) |
 | 5 | `/plan-build 3` | 🟡 em andamento (3/5) — plano commitado (`0270b34`), falta sua revisão (5.2/5.3) |
 | 6 | `/plan-test-specs 3` (condicional) | ✅ concluído — 2 specs commitadas (`e84a1d4`) |
-| 7 | `/implement 3` | 🟡 em andamento — 10/10 SIs implementados e testados; final verification **não verde** (spec de migrations + lint); nada commitado |
-| 7B | Correções para a DoD (tasks: migrations, lint, runInBand, `phase-03-dod`) + Compose real + `/implement 3` | 🟡 em andamento — A ✅ (PR #1) · B ✅ (PR #2) · B' implementada (task `test-e2e-runinband`), falta commit/PR → `dev` |
+| 7 | `/implement 3` | 🟡 em andamento — 10/10 SIs implementados e testados; final verification de 2026-11-13 **não verde** (spec de migrations + lint, ambos corrigidos na 7B); falta rodar a etapa H |
+| 7B | Correções para a DoD (tasks: migrations, lint, runInBand, `phase-03-dod`) + Compose real + `/implement 3` | 🟡 em andamento — A ✅ (PR #1) · B ✅ (PR #2) · B' ✅ (PR #3) · C implementada (task `lint-baseline`, lint 0/0), falta commit/PR → `dev` · E coberta por B + C · falta G e H |
 | 8 | Fechamento (DoD + docs + PRs) | ⬜ pendente |
 
 Legenda: ⬜ pendente · 🟡 em andamento · ✅ concluído · ⏭️ não se aplica
 
 **Pendências abertas (2026-11-14):**
-- **Final verification não verde** (rodada na `bugfix/test-e2e-runinband` em 2026-11-14): ✅ unit/integration 233/233 (40 suítes) · ✅ `npm run test:e2e` 66/66 (5 suítes, em série pelo script) · ✅ `tsc` · ✅ build · ❌ lint 218 erros + 53 warnings, todos pré-existentes e fora das tasks B/B' (etapa C).
-- **`npm run lint` usa `--fix` e quebra o `tsc`:** remove o `as any` de `test/support/video-e2e.ts:52` (acesso a `mailService` privado → TS2341) e reformata `src/videos/videos.service.integration-spec.ts`. Revertido com `git checkout`. Na etapa C, medir o lint sem `--fix`.
+- **Etapa C sem commit:** task `lint-baseline` implementada e verificada na `bugfix/lint-baseline` (DoD verde: unit/integration 233/233 · e2e 66/66 · `tsc` ✅ · lint 0 erros / 0 warnings). Falta commit + PR → `dev`. 13 arquivos modificados em `nestjs-project/` + `docs/decisions/technical-decisions-lint-baseline.md` + `docs/tasks/task-lint-baseline/`.
+- Follow-ups novos da etapa C (fora do escopo, registrados em `docs/tasks/task-lint-baseline/progress.md` e no doc de decisões): separar `lint` (checagem) de `lint:fix` — o script ainda junta `--fix` com o gate; trocar `(authService as any).mailService` por `app.get(MailService)` em `auth.service.integration-spec.ts` e `test/auth.e2e-spec.ts`; tipar respostas nos e2e quando existirem DTOs de auth; migrar `tseslint.config` (deprecated) para `defineConfig`; vulnerabilidades pré-existentes do `npm audit`; bug na skill `plan-build` (a Phase B não remove `<!-- phase-a-complete -->` em planos sem Tech Specs — 5 planos antigos ainda têm a sentinela).
 - **Critérios de runtime do SI-03.8 não verificados:** o `video-worker` nunca foi ligado (`docker compose ps`, upload real → `ready`, parada limpa).
 - Fechamento: `CLAUDE.md` da raiz (Message Queue "TBD" → BullMQ/Redis, worker, MinIO, módulo de vídeos).
 - Follow-ups novos (fora do escopo, registrados em `docs/tasks/task-fix-migrations-integration-spec/progress.md`): `createTestDataSource` usa `synchronize: true` por padrão, o que cria tabelas sem registrar migrations (o banco tinha `videos` sem a linha `CreateVideos` em `migrations`); os specs de integração usam o mesmo banco `streamtube` da aplicação de dev (avaliar banco de teste separado).
 - Revisões antigas ainda abertas: 0.5 commitar este plano (opcional) · 1.2 revisar as 9 TDs · 2.2 revisar `context.md` · 5.2/5.3 revisar Tech Specs e SIs.
 
-**Próximo passo:** commitar a task na `bugfix/test-e2e-runinband` e abrir PR → `dev` (B') → C (lint, a partir da `dev`) → E reduzida (só lint dos testes da fase) → (F) → G → H (`/implement 3`) → Passo 8. Uma branch nova da `dev` por pendência.
+**Próximo passo:** commitar a task na `bugfix/lint-baseline` e abrir PR → `dev` (C) → (F) → G (Compose real) → H (`/implement 3`) → Passo 8. A etapa E não precisa mais de task própria: o item (1) saiu na B e o lint dos testes da fase zerou na C. Uma branch nova da `dev` por pendência.
 
 ### Histórico
 - **2026-11-11** — context7 autenticado via OAuth (plugin `claude-plugins-official/context7`, `/mcp` → Authenticate). Passo 0.3 concluído.
@@ -69,6 +69,8 @@ Legenda: ⬜ pendente · 🟡 em andamento · ✅ concluído · ⏭️ não se a
 - **2026-11-14** — Etapa B (task `fix-migrations-integration-spec`, slug diferente do sugerido `migrations-spec-fix`) na `bugfix/migrations-spec`, pipeline completo: `/plan-context` (sem decisions doc próprio; correlator: fases 01, 02-auth e 03) → `/plan-validate` `dirty` (AMB-1 banco compartilhado × suítes paralelas; AMB-2 como descobrir o que derrubar) → `/plan-resolve` (AMB-1: banco compartilhado + execução serial com `--runInBand`; AMB-2: descoberta pelo catálogo `pg_tables`/`pg_type`) → `/plan-validate` `clean` → `/plan-build` (1 SI, sem Tech Specs) → `/implement`. O spec agora derruba, um por vez, todas as tabelas e tipos enum do schema `public`; registra as 3 migrations (inclui `CreateVideos`); tem um teste novo que confere o schema vazio após o reset; o `afterAll` usa `try/finally` e só mexe na conexão se ela abriu. Desvio do plano: DataSource com lista de entidades vazia (a lista parcial quebrava no `Channel#videos`). Resultado: 3/3 testes, duas execuções seguidas, Jest encerra sozinho; o banco ficou com as 3 migrations registradas. Como a `dev` já tinha a fase 03, esta task também cobriu o item (1) da etapa E. Final verification da task: unit/integration ✅ 233/233, `tsc` ✅, e2e ❌ 16/66 (falta `--runInBand`, etapa B'), lint ❌ 218 erros (etapa C). Falta commit + merge na `dev`.
 - **2026-11-14** — Etapa B mergeada na `dev` pelo PR #2 (`420b765`; commit `39b84a6`). `bugfix/test-e2e-runinband` criada a partir dessa `dev`.
 - **2026-11-14** — Etapa B' (task `test-e2e-runinband`) na `bugfix/test-e2e-runinband`: `/plan-context` (sem decisions doc próprio; correlator: `phase-03-videos` confirmado, herdados da fase 02) → `/plan-validate` `clean` direto (0 issues) → `/plan-build` (1 SI, sem Tech Specs, Phase A e B em duas execuções) → `/implement`. Mudança única: `scripts.test:e2e` = `jest --config ./test/jest-e2e.json --runInBand` (o `nestjs-project/CLAUDE.md` já dizia isso; não foi editado). Final verification: unit/integration ✅ 233/233 · e2e ✅ 66/66 em série pelo script, sem aviso de processo aberto · `tsc` ✅ · build ✅ · lint ❌ 218 erros + 53 warnings pré-existentes. O `--fix` do lint voltou a alterar `test/support/video-e2e.ts` (quebra o `tsc`) e `src/videos/videos.service.integration-spec.ts` — revertidos. `progress.md` da task segue `in_progress` só por causa do lint (etapa C). Falta commit + PR → `dev`.
+- **2026-11-14** — Etapa B' mergeada na `dev` pelo PR #3 (`5cd67ce`; commit `39075e0`). `bugfix/lint-baseline` criada a partir dessa `dev`.
+- **2026-11-14** — Etapa C (task `lint-baseline`) na `bugfix/lint-baseline`, pipeline completo: `/research lint-baseline` (baseline medido sem `--fix`: **222 erros + 53 warnings**, não 150 + 40; 263 dos 275 em specs, 6 em `channels.service.ts`, 6 em helpers de teste) → `/plan-context` (correlator: fases 01, 02-auth e 03) → `/plan-validate` `dirty` (OQ-1..3) → `/plan-resolve` com as recomendadas — TD-01 C (híbrido: corrigir produção, helpers e defeitos reais + override de `no-unsafe-*` só nos specs), TD-02 A (`eslint-plugin-jest`: `jest/unbound-method` no lugar da regra do core nos specs), TD-03 B (`--max-warnings 0`) → `/plan-validate` `clean` → `/plan-build` (6 SIs, sem Tech Specs; Phase A e B em duas execuções) → `/implement`. Mudanças: `eslint-plugin-jest@^29.17.0`; bloco de override no `eslint.config.mjs` para `*.spec.ts`/`*.integration-spec.ts`/`*.e2e-spec.ts`; `channels.service.ts` sem `as any` (estreita `QueryFailedError.driverError`); `test/support/video-e2e.ts` usa `app.get(MailService)` e valida o `access_token` (fim do problema do `--fix` quebrando o `tsc`); `create-test-data-source.ts` sem `Function`; `async` sem `await`, imports não usados e prettier corrigidos em 5 specs; script `lint` com `--max-warnings 0`; `nestjs-project/CLAUDE.md` documenta o gate e o override. Lint: 222/53 → 24/0 após o override → **0/0**. Final verification: unit/integration ✅ 233/233 (40 suítes) · e2e ✅ 66/66 (5 suítes) · `tsc` ✅ · `npm run lint` ✅ exit 0, sem alterações do `--fix`. `progress.md` da task `completed` (6/6). Cobre também o lint dos testes da fase 03 (etapa E). Falta commit + PR → `dev`.
 
 ---
 
@@ -77,20 +79,20 @@ Fluxo oficial do projeto:
 
 ---
 
-## Status do ambiente (última verificação: 2026-11-13)
+## Status do ambiente (última verificação: 2026-11-14)
 
 | Item | Situação |
 |------|----------|
 | Containers `db`, `mailpit`, `nestjs-api`, `redis`, `minio` (+ `minio-init`) | ✅ rodando — `nestjs-api` ocioso; a API sobe com `docker compose exec -d nestjs-api npm run start:dev` · `video-worker` definido no compose mas **nunca ligado** (`docker compose up -d video-worker`) |
 | API `http://localhost:3000` | ✅ 200 |
 | Migrations | ✅ `CreateUsersAndChannels`, `CreateAuthTokens`, `CreateVideos` (run → revert → run validado no SI-03.3) |
-| Suíte de testes (2026-11-14, `bugfix/test-e2e-runinband`) | ⚠️ unit/integration ✅ 233/233 · e2e ✅ 66/66 pelo script · tsc ✅ · build ✅ · lint ❌ 218 erros + 53 warnings |
+| Suíte de testes (2026-11-14, `bugfix/lint-baseline`) | ✅ unit/integration 233/233 · e2e 66/66 pelo script · tsc ✅ · lint 0 erros / 0 warnings (`--max-warnings 0`) · build não rodado nesta etapa (✅ na B') |
 | MCP postgres | ✅ conectado |
-| Branch atual | `bugfix/test-e2e-runinband` (da `dev` em `420b765`, que já tem a fase 03 e a etapa B); `feature/phase-03-videos` mergeada na `dev` pelo PR #1, `bugfix/migrations-spec` pelo PR #2 |
+| Branch atual | `bugfix/lint-baseline` (da `dev` em `5cd67ce`, que já tem a fase 03 e as etapas B e B'); `feature/phase-03-videos` mergeada na `dev` pelo PR #1, `bugfix/migrations-spec` pelo PR #2, `bugfix/test-e2e-runinband` pelo PR #3 |
 | `next-frontend/package-lock.json` | ✅ revertido (pode voltar após `npm install` no container do front — basta reverter de novo) |
 | MCP context7 | ✅ conectado via plugin (OAuth) — tools `mcp__plugin_context7_context7__*` |
 | ffmpeg no container | ✅ ffmpeg 5.1 no `Dockerfile.dev` (imagem reconstruída) |
-| Artefatos da fase 03 | ✅ tudo commitado (`1c25bc0` … `34ad8d0`) e mergeado na `dev` (`d551ff0`) · task `fix-migrations-integration-spec` mergeada na `dev` (PR #2) · task `test-e2e-runinband` (`package.json` + `docs/tasks/task-test-e2e-runinband/`) não commitada |
+| Artefatos da fase 03 | ✅ tudo commitado (`1c25bc0` … `34ad8d0`) e mergeado na `dev` (`d551ff0`) · task `fix-migrations-integration-spec` mergeada na `dev` (PR #2) · task `test-e2e-runinband` mergeada na `dev` (PR #3) · task `lint-baseline` (13 arquivos em `nestjs-project/` + doc de decisões + `docs/tasks/task-lint-baseline/`) não commitada |
 
 ---
 
@@ -371,10 +373,10 @@ Consulte o context7 / library-refs.md antes de usar cada lib.
 
 - [x] **A** Commitar a fase *(commit único `34ad8d0`, mergeado na `dev` pelo PR #1 — `d551ff0`)*
 - [x] **B** `bugfix/migrations-spec` mergeado na `dev` *(PR #2 — `420b765`, em 2026-11-14)*
-- [ ] **B'** `bugfix/test-e2e-runinband` mergeado na `dev` *(task `test-e2e-runinband` implementada e verificada em 2026-11-14 — e2e 66/66 pelo script; falta commit + PR)*
-- [ ] **C** `bugfix/lint-baseline` mergeado na `dev`
+- [x] **B'** `bugfix/test-e2e-runinband` mergeado na `dev` *(PR #3 — `5cd67ce`, em 2026-11-14)*
+- [ ] **C** `bugfix/lint-baseline` mergeado na `dev` *(task `lint-baseline` implementada e verificada em 2026-11-14 — lint 0/0, DoD verde; falta commit + PR)*
 - [ ] **D** `dev` mergeada na `feature/phase-03-videos` (conflitos resolvidos, `tsc` ok)
-- [ ] **E** task `phase-03-dod` implementada e commitada *(item (1), spec de migrations com `videos`, já resolvido na etapa B — sobra só o lint dos testes da fase)*
+- [ ] **E** task `phase-03-dod` implementada e commitada *(dispensável: item (1) resolvido na etapa B e item (2), lint dos testes da fase, zerado na etapa C — marcar quando a C for mergeada)*
 - [ ] **F** (opcional) revisão da TD-01 registrada
 - [ ] **G** verificação manual do Compose
 - [ ] **H** `/implement 3` → final verification verde, `progress.md` com `Status: completed`
@@ -565,5 +567,5 @@ git push -u origin feature/phase-03-videos
 | 5 | `/plan-build 3` | `phase-03-videos.md` |
 | 6 | `/plan-test-specs 3` (condicional) | `nestjs-project/specs/*.plan.md` |
 | 7 | `/implement 3` | código + `progress.md` |
-| 7B | tasks `migrations-spec-fix`, `lint-baseline`, `phase-03-dod` (+ `/decide` opcional) → `/implement 3` | `docs/tasks/task-*/`, DoD verde, `progress.md` `completed` |
+| 7B | tasks `fix-migrations-integration-spec`, `test-e2e-runinband`, `lint-baseline` (+ `/decide` opcional) → `/implement 3` | `docs/tasks/task-*/`, DoD verde, `progress.md` `completed` |
 | 8 | verificação + docs + PRs | DoD verde, CLAUDE.md atualizado, merge em `dev` |
